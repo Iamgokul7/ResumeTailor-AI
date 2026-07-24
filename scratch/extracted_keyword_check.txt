@@ -1,0 +1,860 @@
+Step 550 viewed collect_all_tailored_text_elements
+Created At: 2026-07-18T15:38:57Z
+Completed At: 2026-07-18T15:38:58Z
+File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+Total Lines: 1024
+Total Bytes: 44293
+Showing lines 660 to 715
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+660:         kw_words = [w for w in re.split(r"[^\w\d]+", kw_lower) if len(w) > 2]
+661:         if kw_words:
+662:             for el in elements:
+663:                 all_words_found = True
+664:                 for word in kw_words:
+665:                     word_found = False
+666:                     for variant in get_word_variants(word):
+667:                         if variant in el:
+668:                             word_found = True
+669:                             break
+670:                     if not word_found:
+671:                         all_words_found = False
+672:                         break
+673:                 if all_words_found:
+674:                     return True
+675:         return False
+676: 
+677:     if selected_keywords:
+678:         all_elements = collect_all_tailored_text_elements(resume)
+679:         missing_keywords = []
+680:         for kw in selected_keywords:
+681:             present = check_keyword_present_in_elements(kw, all_elements)
+682:             logger.info("Validation (Keyword integration check - '%s'): Pass: %s", kw, present)
+683:             if not present:
+684:                 missing_keywords.append(kw)
+685:         if missing_keywords:
+686:             errors.append(
+687:                 f"Missing user-selected keywords: the following keywords were selected by the user to integrate "
+688:                 f"but are completely missing from the generated resume: {', '.join(missing_keywords)}. "
+689:                 f"You must integrate all user-selected keywords into appropriate sections (skills, summary, or bullets)."
+690:             )
+691: 
+692:     # i) Project title verification and explicit comparison logging
+693:     master_lines = master_resume.splitlines()
+694:     for proj in resume.get("projects", []):
+695:         if not isinstance(proj, dict):
+696:             continue
+697:         ai_name = proj.get("name", "")
+698:         # Find corresponding master line containing this project title
+699:         expected_title = ""
+700:         for line in master_lines:
+701:             if ai_name.lower() in line.lower() or any(part in line.lower() for part in ai_name.lower().split() if len(part) > 4):
+702:                 expected_title = clean_master_project_line(line)
+703:                 break
+704:         logger.info("Validation (Project title comparison): Tailored Title: '%s' | Expected Master Title: '%s'", ai_name, expected_title)
+705:         if expected_title and ai_name != expected_title:
+706:             errors.append(f"Project title mismatch: tailored project name '{ai_name}' does not match expected master name '{expected_title}'")
+707: 
+708:     return errors
+709: 
+710: 
+711: def generate_tailored_resume(master_resume: str, jd_text: str, selected_keywords: list[str] | None = None) -> dict[str, Any]:
+712:     """
+713:     Call Gemini once or twice to tailor the resume.
+714:     """
+715:     from google import genai
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+------------------
+Step 746 viewed collect_all_tailored_text_elements
+Created At: 2026-07-19T08:04:48Z
+Completed At: 2026-07-19T08:04:49Z
+File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+Total Lines: 1226
+Total Bytes: 53654
+Showing lines 586 to 610
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+586:             for item in tech_items:
+587:                 if is_exempt(item):
+588:                     continue
+589:                 if not check_traceability(item):
+590:                     errors.append(f"Fabrication check failed: technical skill/technology '{item}' (in project '{name}') has no supporting evidence in the master resume")
+591: 
+592:     # h) Keyword integration check
+593:     def collect_all_tailored_text_elements(resume: dict[str, Any]) -> list[str]:
+594:         elements = []
+595:         if resume.get("summary"):
+596:             elements.append(resume["summary"])
+597:         for group in resume.get("skills_selected", []):
+598:             if isinstance(group, dict):
+599:                 elements.append(group.get("category", ""))
+600:                 for item in group.get("items", []):
+601:                     elements.append(item)
+602:         for proj in resume.get("projects", []):
+603:             if isinstance(proj, dict):
+604:                 elements.append(proj.get("name", ""))
+605:                 elements.append(proj.get("tech_stack", ""))
+606:                 elements.extend(proj.get("bullets", []))
+607:         for intern in resume.get("internships_selected", []):
+608:             if isinstance(intern, dict):
+609:                 elements.append(intern.get("company", ""))
+610:                 elements.append(intern.get("role", ""))
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+------------------
+Step 754 viewed collect_all_tailored_text_elements
+Created At: 2026-07-19T08:05:14Z
+Completed At: 2026-07-19T08:05:14Z
+File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+Total Lines: 1226
+Total Bytes: 53728
+Showing lines 560 to 600
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+560:                     all_words_matched = False
+561:                     break
+562:             if all_words_matched:
+563:                 return True
+564: 
+565:         return False
+566: 
+567:     # Check skills
+568:     for group in resume.get("skills_selected", []):
+569:         if not isinstance(group, dict):
+570:             continue
+571:         category = group.get("category", "")
+572:         for item in group.get("items", []):
+573:             if is_exempt(item):
+574:                 continue
+575:             if not check_traceability(item):
+576:                 errors.append(f"Fabrication check failed: technical skill '{item}' (under category '{category}') has no supporting evidence in the master resume")
+577: 
+578:     # Check project tech_stack
+579:     for proj in resume.get("projects", []):
+580:         if not isinstance(proj, dict):
+581:             continue
+582:         name = proj.get("name", "")
+583:         tech_stack = proj.get("tech_stack", "")
+584:         if tech_stack:
+585:             tech_items = [t.strip() for t in re.split(r"[,;]+", tech_stack) if t.strip()]
+586:             for item in tech_items:
+587:                 if is_exempt(item):
+588:                     continue
+589:                 if not check_traceability(item):
+590:                     errors.append(f"Fabrication check failed: technical skill/technology '{item}' (in project '{name}') has no supporting evidence in the master resume")
+591: 
+592:     # h) Keyword integration check
+593:     def collect_all_tailored_text_elements(resume: dict[str, Any]) -> list[str]:
+594:         elements = []
+595:         if resume.get("summary"):
+596:             elements.append(resume["summary"])
+597:         for group in resume.get("skills_selected", []):
+598:             if isinstance(group, dict):
+599:                 elements.append(group.get("category", ""))
+600:                 for item in group.get("items", []):
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+------------------
+Step 764 viewed collect_all_tailored_text_elements
+Created At: 2026-07-19T08:05:37Z
+Completed At: 2026-07-19T08:05:38Z
+File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+Total Lines: 1227
+Total Bytes: 53754
+Showing lines 560 to 600
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+560:                 if not word_matched:
+561:                     all_words_matched = False
+562:                     break
+563:             if all_words_matched:
+564:                 return True
+565: 
+566:         return False
+567: 
+568:     # Check skills
+569:     for group in resume.get("skills_selected", []):
+570:         if not isinstance(group, dict):
+571:             continue
+572:         category = group.get("category", "")
+573:         for item in group.get("items", []):
+574:             if is_exempt(item):
+575:                 continue
+576:             if not check_traceability(item):
+577:                 errors.append(f"Fabrication check failed: technical skill '{item}' (under category '{category}') has no supporting evidence in the master resume")
+578: 
+579:     # Check project tech_stack
+580:     for proj in resume.get("projects", []):
+581:         if not isinstance(proj, dict):
+582:             continue
+583:         name = proj.get("name", "")
+584:         tech_stack = proj.get("tech_stack", "")
+585:         if tech_stack:
+586:             tech_items = [t.strip() for t in re.split(r"[,;]+", tech_stack) if t.strip()]
+587:             for item in tech_items:
+588:                 if is_exempt(item):
+589:                     continue
+590:                 if not check_traceability(item):
+591:                     errors.append(f"Fabrication check failed: technical skill/technology '{item}' (in project '{name}') has no supporting evidence in the master resume")
+592: 
+593:     # h) Keyword integration check
+594:     def collect_all_tailored_text_elements(resume: dict[str, Any]) -> list[str]:
+595:         elements = []
+596:         if resume.get("summary"):
+597:             elements.append(resume["summary"])
+598:         for group in resume.get("skills_selected", []):
+599:             if isinstance(group, dict):
+600:                 elements.append(group.get("category", ""))
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+------------------
+Step 989 viewed collect_all_tailored_text_elements
+Created At: 2026-07-19T09:39:16Z
+Completed At: 2026-07-19T09:39:17Z
+File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+Total Lines: 1373
+Total Bytes: 62066
+Showing lines 651 to 720
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+651:                         break
+652:                 if not word_matched:
+653:                     all_words_matched = False
+654:                     break
+655:             if all_words_matched:
+656:                 return True
+657: 
+658:         return False
+659: 
+660:     # Check skills
+661:     for group in resume.get("skills_selected", []):
+662:         if not isinstance(group, dict):
+663:             continue
+664:         category = group.get("category", "")
+665:         for item in group.get("items", []):
+666:             if is_exempt(item):
+667:                 continue
+668:             if not check_traceability(item):
+669:                 unverified_items.append({
+670:                     "item": item,
+671:                     "location": f"skills category: {category}"
+672:                 })
+673: 
+674:     # Check project tech_stack
+675:     for proj in resume.get("projects", []):
+676:         if not isinstance(proj, dict):
+677:             continue
+678:         name = proj.get("name", "")
+679:         tech_stack = proj.get("tech_stack", "")
+680:         if tech_stack:
+681:             tech_items = [t.strip() for t in re.split(r"[,;]+", tech_stack) if t.strip()]
+682:             for item in tech_items:
+683:                 if is_exempt(item):
+684:                     continue
+685:                 if not check_traceability(item):
+686:                     unverified_items.append({
+687:                         "item": item,
+688:                         "location": f"project: {name}"
+689:                     })
+690: 
+691:     # h) Keyword integration check
+692:     def collect_all_tailored_text_elements(resume: dict[str, Any]) -> list[str]:
+693:         elements = []
+694:         if resume.get("summary"):
+695:             elements.append(resume["summary"])
+696:         for group in resume.get("skills_selected", []):
+697:             if isinstance(group, dict):
+698:                 elements.append(group.get("category", ""))
+699:                 for item in group.get("items", []):
+700:                     elements.append(item)
+701:         for proj in resume.get("projects", []):
+702:             if isinstance(proj, dict):
+703:                 elements.append(proj.get("name", ""))
+704:                 elements.append(proj.get("tech_stack", ""))
+705:                 elements.extend(proj.get("bullets", []))
+706:         for intern in resume.get("internships_selected", []):
+707:             if isinstance(intern, dict):
+708:                 elements.append(intern.get("company", ""))
+709:                 elements.append(intern.get("role", ""))
+710:                 elements.extend(intern.get("bullets", []))
+711:         for edu in resume.get("education", []):
+712:             if isinstance(edu, dict):
+713:                 elements.append(edu.get("institution", ""))
+714:                 elements.append(edu.get("degree", ""))
+715:         for cert in resume.get("certifications", []):
+716:             if isinstance(cert, dict):
+717:                 elements.append(cert.get("name", ""))
+718:                 elements.append(cert.get("issuer", ""))
+719:         for pub in resume.get("publications", []):
+720:             if isinstance(pub, dict):
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+------------------
+Step 1399 viewed collect_all_tailored_text_elements
+Created At: 2026-07-19T16:28:14Z
+Completed At: 2026-07-19T16:28:15Z
+File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/scratch/extracted_views.txt`
+Total Lines: 628
+Total Bytes: 33204
+Showing lines 301 to 600
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+301: 1095:             
+302: 1096:             # Validate
+303: 1097:             errors, unverified_items = validate_tailored_resume(parsed_data, master_resume, selected_keywords, return_unverified=True)
+304: 1098:             if not errors:
+305: 1099:                 logger.info("Tailored resume passed validation on attempt %d.", attempt + 1)
+306: 1100:                 if "tailored_resume" in parsed_data and "skills_selected" in parsed_data["tailored_resume"]:
+307: 1101:                     parsed_data["tailored_resume"]["skills_selected"] = deduplicate_skills_selected(
+308: 1102:                         parsed_data["tailored_resume"]["skills_selected"]
+309: 1103:                     )
+310: 1104:                 parsed_data["unverified_skills"] = unverified_items
+311: 1105:                 return parsed_data
+312: 1106:             else:
+313: 1107:                 logger.warning("Attempt %d validation failed: %s", attempt + 1, errors)
+314: 1108:                 last_errors = errors
+315: 1109:                 
+316: 1110:                 # Check if we should stop retrying early (non-buzzword failure limit of 2 attempts)
+317: 1111:                 is_buzzword_only = all("banned buzzword phrase" in err for err in errors)
+318: 1112:                 if attempt >= 1 and not is_buzzword_only:
+319: 1113:                     logger.info("Stopping retry loop early (attempt %d): non-buzzword errors present: %s", attempt + 1, errors)
+320: 1114:                     break
+321: 1115:                     
+322: 1116:                 # Format feedback instruction for next retry
+323: 1117:                 feedback_instruction = "\n".join(f"- {err}" for err in errors)
+324: 1118:                 
+325: 1119:                 # Append alternative phrasing suggestions specifically for buzzwords
+326: 1120:                 buzzword_errors = [err for err in errors if "banned buzzword phrase" in err]
+327: 1121:                 if buzzword_errors:
+328: 1122:                     suggestions_list = []
+329: 1123:                     for err in buzzword_errors:
+330: 1124:                         match = re.search(r"banned buzzword phrase '([^']+)'", err)
+331: 1125:                         if match:
+332: 1126:                             phrase = match.group(1)
+333: 1127:                             sug = get_buzzword_suggestions(phrase)
+334: 1128:                             suggestions_list.append(f"For '{phrase}':\n{sug}")
+335: 1129:                     if suggestions_list:
+336: 1130:                         feedback_instruction += "\n\n💡 Alternative Phrasing Suggestions:\n" + "\n\n".join(suggestions_list)
+337: 1131:                         
+338: 1132:         except Exception as exc:
+339: 1133:             logger.exception("Error parsing/validating on attempt %d: %s", attempt + 1, exc)
+340: 1134:             feedback_instruction = f"Failed to parse or validate JSON response. Ensure the output is valid JSON according to the schema: {exc}"
+341: 1135:             last_errors = [str(exc)]
+342: 1136:             if attempt >= 1:
+343: 1137:                 # Syntax errors/exceptions also don't get the extra buzzword budget
+344: 1138:                 break
+345: 1139: 
+346: 1140:     # If the summary STILL contains buzzwords and all errors are exclusively buzzword errors, apply python fallback
+347: 1141:     if last_errors and parsed_data and isinstance(parsed_data.get("tailored_resume"), dict):
+348: 1142:         is_buzzword_only = all("banned buzzword phrase" in err for err in last_errors)
+349: 1143:         if is_buzzword_only:
+350: 1144:             original_summary = parsed_data["tailored_resume"].get("summary", "")
+351: 1145:             cleaned_summary = deterministic_buzzword_cleanup(original_summary)
+352: 1146:             logger.warning("LAST-RESORT FALLBACK: LLM failed to self-correct buzzwords after 4 attempts. Summary cleaned: '%s' -> '%s'", original_summary, cleaned_summary)
+353: 1147:             parsed_data["tailored_resume"]["summary"] = cleaned_summary
+354: 1148:             
+355: 1149:             # Re-run validation one last time
+356: 1150:             errors, unverified_items = validate_tailored_resume(parsed_data, master_resume, selected_keywords, return_unverified=True)
+357: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+358: 
+359: 
+360: ========================================
+361: STEP 985 VIEW
+362: ========================================Created At: 2026-07-19T09:39:08Z
+363: Completed At: 2026-07-19T09:39:08Z
+364: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+365: Total Lines: 1373
+366: Total Bytes: 62066
+367: Showing lines 1145 to 1170
+368: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+369: 1145:             cleaned_summary = deterministic_buzzword_cleanup(original_summary)
+370: 1146:             logger.warning("LAST-RESORT FALLBACK: LLM failed to self-correct buzzwords after 4 attempts. Summary cleaned: '%s' -> '%s'", original_summary, cleaned_summary)
+371: 1147:             parsed_data["tailored_resume"]["summary"] = cleaned_summary
+372: 1148:             
+373: 1149:             # Re-run validation one last time
+374: 1150:             errors, unverified_items = validate_tailored_resume(parsed_data, master_resume, selected_keywords, return_unverified=True)
+375: 1151:             if not errors:
+376: 1152:                 logger.info("Tailored resume passed validation after applying last-resort cleanup fallback.")
+377: 1153:                 if "tailored_resume" in parsed_data and "skills_selected" in parsed_data["tailored_resume"]:
+378: 1154:                     parsed_data["tailored_resume"]["skills_selected"] = deduplicate_skills_selected(
+379: 1155:                         parsed_data["tailored_resume"]["skills_selected"]
+380: 1156:                     )
+381: 1157:                 parsed_data["unverified_skills"] = unverified_items
+382: 1158:                 return parsed_data
+383: 1159:             else:
+384: 1160:                 last_errors = errors
+385: 1161: 
+386: 1162:     raise ValueError(f"Resume validation failed after attempts: {', '.join(last_errors)}")
+387: 1163: 
+388: 1164: 
+389: 1165: def generate_content_with_fallback(
+390: 1166:     client: Any,
+391: 1167:     prompt: str,
+392: 1168:     system_instruction: str,
+393: 1169:     temperature: float,
+394: 1170: ) -> Any:
+395: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+396: 
+397: 
+398: ========================================
+399: STEP 987 VIEW
+400: ========================================Created At: 2026-07-19T09:39:13Z
+401: Completed At: 2026-07-19T09:39:14Z
+402: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+403: Total Lines: 1373
+404: Total Bytes: 62066
+405: Showing lines 590 to 650
+406: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+407: 590: 
+408: 591:     def get_word_variants(word: str) -> list[str]:
+409: 592:         w = word.strip().lower()
+410: 593:         if not w:
+411: 594:             return []
+412: 595:         variants = [w]
+413: 596:         if w.endswith("s") and len(w) > 1:
+414: 597:             variants.append(w[:-1])
+415: 598:         else:
+416: 599:             variants.append(w + "s")
+417: 600:         return variants
+418: 601: 
+419: 602:     def match_phrase(p1: str, p2: str) -> bool:
+420: 603:         p1_clean = p1.strip().lower()
+421: 604:         p2_clean = p2.strip().lower()
+422: 605:         if p1_clean == p2_clean:
+423: 606:             return True
+424: 607:         if p2_clean in get_word_variants(p1_clean) or p1_clean in get_word_variants(p2_clean):
+425: 608:             return True
+426: 609:         words1 = [w for w in re.split(r"[^\w\d]+", p1_clean) if len(w) > 2]
+427: 610:         words2 = [w for w in re.split(r"[^\w\d]+", p2_clean) if len(w) > 2]
+428: 611:         if words1 and words2 and len(words1) == len(words2):
+429: 612:             all_words_matched = True
+430: 613:             for w1, w2 in zip(words1, words2):
+431: 614:                 if w1 != w2 and w1 not in get_word_variants(w2) and w2 not in get_word_variants(w1):
+432: 615:                     all_words_matched = False
+433: 616:                     break
+434: 617:             if all_words_matched:
+435: 618:                 return True
+436: 619:         return False
+437: 620: 
+438: 621:     def is_exempt(item: str) -> bool:
+439: 622:         if not selected_keywords:
+440: 623:             return False
+441: 624:         for kw in selected_keywords:
+442: 625:             if match_phrase(item, kw):
+443: 626:                 return True
+444: 627:         return False
+445: 628: 
+446: 629:     def check_traceability(item: str) -> bool:
+447: 630:         item_clean = item.strip().lower()
+448: 631:         if not item_clean:
+449: 632:             return True
+450: 633:         if item_clean in master_blob:
+451: 634:             return True
+452: 635: 
+453: 636:         # Try exact match with singular/plural of the entire phrase
+454: 637:         whole_phrase_variants = get_word_variants(item_clean)
+455: 638:         for variant in whole_phrase_variants:
+456: 639:             if variant in master_blob:
+457: 640:                 return True
+458: 641: 
+459: 642:         # Token-based check for multi-word items with singular/plural tolerance
+460: 643:         words = [w for w in re.split(r"[^\w\d]+", item_clean) if len(w) > 2]
+461: 644:         if words:
+462: 645:             all_words_matched = True
+463: 646:             for word in words:
+464: 647:                 word_matched = False
+465: 648:                 for variant in get_word_variants(word):
+466: 649:                     if variant in master_blob:
+467: 650:                         word_matched = True
+468: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+469: 
+470: 
+471: ========================================
+472: STEP 989 VIEW
+473: ========================================Created At: 2026-07-19T09:39:16Z
+474: Completed At: 2026-07-19T09:39:17Z
+475: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+476: Total Lines: 1373
+477: Total Bytes: 62066
+478: Showing lines 651 to 720
+479: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+480: 651:                         break
+481: 652:                 if not word_matched:
+482: 653:                     all_words_matched = False
+483: 654:                     break
+484: 655:             if all_words_matched:
+485: 656:                 return True
+486: 657: 
+487: 658:         return False
+488: 659: 
+489: 660:     # Check skills
+490: 661:     for group in resume.get("skills_selected", []):
+491: 662:         if not isinstance(group, dict):
+492: 663:             continue
+493: 664:         category = group.get("category", "")
+494: 665:         for item in group.get("items", []):
+495: 666:             if is_exempt(item):
+496: 667:                 continue
+497: 668:             if not check_traceability(item):
+498: 669:                 unverified_items.append({
+499: 670:                     "item": item,
+500: 671:                     "location": f"skills category: {category}"
+501: 672:                 })
+502: 673: 
+503: 674:     # Check project tech_stack
+504: 675:     for proj in resume.get("projects", []):
+505: 676:         if not isinstance(proj, dict):
+506: 677:             continue
+507: 678:         name = proj.get("name", "")
+508: 679:         tech_stack = proj.get("tech_stack", "")
+509: 680:         if tech_stack:
+510: 681:             tech_items = [t.strip() for t in re.split(r"[,;]+", tech_stack) if t.strip()]
+511: 682:             for item in tech_items:
+512: 683:                 if is_exempt(item):
+513: 684:                     continue
+514: 685:                 if not check_traceability(item):
+515: 686:                     unverified_items.append({
+516: 687:                         "item": item,
+517: 688:                         "location": f"project: {name}"
+518: 689:                     })
+519: 690: 
+520: 691:     # h) Keyword integration check
+521: 692:     def collect_all_tailored_text_elements(resume: dict[str, Any]) -> list[str]:
+522: 693:         elements = []
+523: 694:         if resume.get("summary"):
+524: 695:             elements.append(resume["summary"])
+525: 696:         for group in resume.get("skills_selected", []):
+526: 697:             if isinstance(group, dict):
+527: 698:                 elements.append(group.get("category", ""))
+528: 699:                 for item in group.get("items", []):
+529: 700:                     elements.append(item)
+530: 701:         for proj in resume.get("projects", []):
+531: 702:             if isinstance(proj, dict):
+532: 703:                 elements.append(proj.get("name", ""))
+533: 704:                 elements.append(proj.get("tech_stack", ""))
+534: 705:                 elements.extend(proj.get("bullets", []))
+535: 706:         for intern in resume.get("internships_selected", []):
+536: 707:             if isinstance(intern, dict):
+537: 708:                 elements.append(intern.get("company", ""))
+538: 709:                 elements.append(intern.get("role", ""))
+539: 710:                 elements.extend(intern.get("bullets", []))
+540: 711:         for edu in resume.get("education", []):
+541: 712:             if isinstance(edu, dict):
+542: 713:                 elements.append(edu.get("institution", ""))
+543: 714:                 elements.append(edu.get("degree", ""))
+544: 715:         for cert in resume.get("certifications", []):
+545: 716:             if isinstance(cert, dict):
+546: 717:                 elements.append(cert.get("name", ""))
+547: 718:                 elements.append(cert.get("issuer", ""))
+548: 719:         for pub in resume.get("publications", []):
+549: 720:             if isinstance(pub, dict):
+550: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+551: 
+552: 
+553: ========================================
+554: STEP 991 VIEW
+555: ========================================Created At: 2026-07-19T09:39:22Z
+556: Completed At: 2026-07-19T09:39:22Z
+557: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+558: Total Lines: 1373
+559: Total Bytes: 62066
+560: Showing lines 475 to 495
+561: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+562: 475: 
+563: 476: 
+564: 477: def validate_tailored_resume(tailored_data: dict[str, Any], master_resume: str, selected_keywords: list[str] | None = None, return_unverified: bool = False) -> list[str] | tuple[list[str], list[dict[str, str]]]:
+565: 478:     """
+566: 479:     Lightweight validation check:
+567: 480:     a) Schema verification for required top-level keys
+568: 481:     b) Check that tailored counts match ground truth entry_counts (projects, internships, education)
+569: 482:     c) Buzzword checks in summary text
+570: 483:     d) Skills section floor check (at least 5 total items)
+571: 484:     e) Certifications & publications count checks against computed ground truth
+572: 485:     f) Project links preservation check
+573: 486:     g) Fabrication check: skills & project technologies must be present in raw master resume text
+574: 487:     h) Keyword integration check: verify all user-selected keywords are integrated
+575: 488:     """
+576: 489:     # Restore/Correct project titles automatically
+577: 490:     restore_full_project_names(tailored_data, master_resume)
+578: 491:     
+579: 492:     errors = []
+580: 493:     unverified_items = []
+581: 494: 
+582: 495:     # a) required top-level keys
+583: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+584: 
+585: 
+586: ========================================
+587: STEP 1009 VIEW
+588: ========================================Created At: 2026-07-19T09:40:39Z
+589: Completed At: 2026-07-19T09:40:39Z
+590: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+591: Total Lines: 1424
+592: Total Bytes: 64435
+593: Showing lines 490 to 520
+594: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+595: 490:     restore_full_project_names(tailored_data, master_resume)
+596: 491:     
+597: 492:     # ── Non-technical Skills Denylist Filtering ──
+598: 493:     if "tailored_resume" in tailored_data and isinstance(tailored_data["tailored_resume"], dict):
+599: 494:         resume = tailored_data["tailored_resume"]
+600: 495:         denylist = {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+------------------
+Step 1411 viewed collect_all_tailored_text_elements
+Created At: 2026-07-19T16:28:40Z
+Completed At: 2026-07-19T16:28:40Z
+File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/scratch/extracted_keyword_check.txt`
+Total Lines: 600
+Total Bytes: 34330
+Showing lines 1 to 250
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: Step 550 viewed collect_all_tailored_text_elements
+2: Created At: 2026-07-18T15:38:57Z
+3: Completed At: 2026-07-18T15:38:58Z
+4: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+5: Total Lines: 1024
+6: Total Bytes: 44293
+7: Showing lines 660 to 715
+8: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+9: 660:         kw_words = [w for w in re.split(r"[^\w\d]+", kw_lower) if len(w) > 2]
+10: 661:         if kw_words:
+11: 662:             for el in elements:
+12: 663:                 all_words_found = True
+13: 664:                 for word in kw_words:
+14: 665:                     word_found = False
+15: 666:                     for variant in get_word_variants(word):
+16: 667:                         if variant in el:
+17: 668:                             word_found = True
+18: 669:                             break
+19: 670:                     if not word_found:
+20: 671:                         all_words_found = False
+21: 672:                         break
+22: 673:                 if all_words_found:
+23: 674:                     return True
+24: 675:         return False
+25: 676: 
+26: 677:     if selected_keywords:
+27: 678:         all_elements = collect_all_tailored_text_elements(resume)
+28: 679:         missing_keywords = []
+29: 680:         for kw in selected_keywords:
+30: 681:             present = check_keyword_present_in_elements(kw, all_elements)
+31: 682:             logger.info("Validation (Keyword integration check - '%s'): Pass: %s", kw, present)
+32: 683:             if not present:
+33: 684:                 missing_keywords.append(kw)
+34: 685:         if missing_keywords:
+35: 686:             errors.append(
+36: 687:                 f"Missing user-selected keywords: the following keywords were selected by the user to integrate "
+37: 688:                 f"but are completely missing from the generated resume: {', '.join(missing_keywords)}. "
+38: 689:                 f"You must integrate all user-selected keywords into appropriate sections (skills, summary, or bullets)."
+39: 690:             )
+40: 691: 
+41: 692:     # i) Project title verification and explicit comparison logging
+42: 693:     master_lines = master_resume.splitlines()
+43: 694:     for proj in resume.get("projects", []):
+44: 695:         if not isinstance(proj, dict):
+45: 696:             continue
+46: 697:         ai_name = proj.get("name", "")
+47: 698:         # Find corresponding master line containing this project title
+48: 699:         expected_title = ""
+49: 700:         for line in master_lines:
+50: 701:             if ai_name.lower() in line.lower() or any(part in line.lower() for part in ai_name.lower().split() if len(part) > 4):
+51: 702:                 expected_title = clean_master_project_line(line)
+52: 703:                 break
+53: 704:         logger.info("Validation (Project title comparison): Tailored Title: '%s' | Expected Master Title: '%s'", ai_name, expected_title)
+54: 705:         if expected_title and ai_name != expected_title:
+55: 706:             errors.append(f"Project title mismatch: tailored project name '{ai_name}' does not match expected master name '{expected_title}'")
+56: 707: 
+57: 708:     return errors
+58: 709: 
+59: 710: 
+60: 711: def generate_tailored_resume(master_resume: str, jd_text: str, selected_keywords: list[str] | None = None) -> dict[str, Any]:
+61: 712:     """
+62: 713:     Call Gemini once or twice to tailor the resume.
+63: 714:     """
+64: 715:     from google import genai
+65: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+66: 
+67: ------------------
+68: Step 746 viewed collect_all_tailored_text_elements
+69: Created At: 2026-07-19T08:04:48Z
+70: Completed At: 2026-07-19T08:04:49Z
+71: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+72: Total Lines: 1226
+73: Total Bytes: 53654
+74: Showing lines 586 to 610
+75: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+76: 586:             for item in tech_items:
+77: 587:                 if is_exempt(item):
+78: 588:                     continue
+79: 589:                 if not check_traceability(item):
+80: 590:                     errors.append(f"Fabrication check failed: technical skill/technology '{item}' (in project '{name}') has no supporting evidence in the master resume")
+81: 591: 
+82: 592:     # h) Keyword integration check
+83: 593:     def collect_all_tailored_text_elements(resume: dict[str, Any]) -> list[str]:
+84: 594:         elements = []
+85: 595:         if resume.get("summary"):
+86: 596:             elements.append(resume["summary"])
+87: 597:         for group in resume.get("skills_selected", []):
+88: 598:             if isinstance(group, dict):
+89: 599:                 elements.append(group.get("category", ""))
+90: 600:                 for item in group.get("items", []):
+91: 601:                     elements.append(item)
+92: 602:         for proj in resume.get("projects", []):
+93: 603:             if isinstance(proj, dict):
+94: 604:                 elements.append(proj.get("name", ""))
+95: 605:                 elements.append(proj.get("tech_stack", ""))
+96: 606:                 elements.extend(proj.get("bullets", []))
+97: 607:         for intern in resume.get("internships_selected", []):
+98: 608:             if isinstance(intern, dict):
+99: 609:                 elements.append(intern.get("company", ""))
+100: 610:                 elements.append(intern.get("role", ""))
+101: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+102: 
+103: ------------------
+104: Step 754 viewed collect_all_tailored_text_elements
+105: Created At: 2026-07-19T08:05:14Z
+106: Completed At: 2026-07-19T08:05:14Z
+107: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+108: Total Lines: 1226
+109: Total Bytes: 53728
+110: Showing lines 560 to 600
+111: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+112: 560:                     all_words_matched = False
+113: 561:                     break
+114: 562:             if all_words_matched:
+115: 563:                 return True
+116: 564: 
+117: 565:         return False
+118: 566: 
+119: 567:     # Check skills
+120: 568:     for group in resume.get("skills_selected", []):
+121: 569:         if not isinstance(group, dict):
+122: 570:             continue
+123: 571:         category = group.get("category", "")
+124: 572:         for item in group.get("items", []):
+125: 573:             if is_exempt(item):
+126: 574:                 continue
+127: 575:             if not check_traceability(item):
+128: 576:                 errors.append(f"Fabrication check failed: technical skill '{item}' (under category '{category}') has no supporting evidence in the master resume")
+129: 577: 
+130: 578:     # Check project tech_stack
+131: 579:     for proj in resume.get("projects", []):
+132: 580:         if not isinstance(proj, dict):
+133: 581:             continue
+134: 582:         name = proj.get("name", "")
+135: 583:         tech_stack = proj.get("tech_stack", "")
+136: 584:         if tech_stack:
+137: 585:             tech_items = [t.strip() for t in re.split(r"[,;]+", tech_stack) if t.strip()]
+138: 586:             for item in tech_items:
+139: 587:                 if is_exempt(item):
+140: 588:                     continue
+141: 589:                 if not check_traceability(item):
+142: 590:                     errors.append(f"Fabrication check failed: technical skill/technology '{item}' (in project '{name}') has no supporting evidence in the master resume")
+143: 591: 
+144: 592:     # h) Keyword integration check
+145: 593:     def collect_all_tailored_text_elements(resume: dict[str, Any]) -> list[str]:
+146: 594:         elements = []
+147: 595:         if resume.get("summary"):
+148: 596:             elements.append(resume["summary"])
+149: 597:         for group in resume.get("skills_selected", []):
+150: 598:             if isinstance(group, dict):
+151: 599:                 elements.append(group.get("category", ""))
+152: 600:                 for item in group.get("items", []):
+153: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+154: 
+155: ------------------
+156: Step 764 viewed collect_all_tailored_text_elements
+157: Created At: 2026-07-19T08:05:37Z
+158: Completed At: 2026-07-19T08:05:38Z
+159: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+160: Total Lines: 1227
+161: Total Bytes: 53754
+162: Showing lines 560 to 600
+163: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+164: 560:                 if not word_matched:
+165: 561:                     all_words_matched = False
+166: 562:                     break
+167: 563:             if all_words_matched:
+168: 564:                 return True
+169: 565: 
+170: 566:         return False
+171: 567: 
+172: 568:     # Check skills
+173: 569:     for group in resume.get("skills_selected", []):
+174: 570:         if not isinstance(group, dict):
+175: 571:             continue
+176: 572:         category = group.get("category", "")
+177: 573:         for item in group.get("items", []):
+178: 574:             if is_exempt(item):
+179: 575:                 continue
+180: 576:             if not check_traceability(item):
+181: 577:                 errors.append(f"Fabrication check failed: technical skill '{item}' (under category '{category}') has no supporting evidence in the master resume")
+182: 578: 
+183: 579:     # Check project tech_stack
+184: 580:     for proj in resume.get("projects", []):
+185: 581:         if not isinstance(proj, dict):
+186: 582:             continue
+187: 583:         name = proj.get("name", "")
+188: 584:         tech_stack = proj.get("tech_stack", "")
+189: 585:         if tech_stack:
+190: 586:             tech_items = [t.strip() for t in re.split(r"[,;]+", tech_stack) if t.strip()]
+191: 587:             for item in tech_items:
+192: 588:                 if is_exempt(item):
+193: 589:                     continue
+194: 590:                 if not check_traceability(item):
+195: 591:                     errors.append(f"Fabrication check failed: technical skill/technology '{item}' (in project '{name}') has no supporting evidence in the master resume")
+196: 592: 
+197: 593:     # h) Keyword integration check
+198: 594:     def collect_all_tailored_text_elements(resume: dict[str, Any]) -> list[str]:
+199: 595:         elements = []
+200: 596:         if resume.get("summary"):
+201: 597:             elements.append(resume["summary"])
+202: 598:         for group in resume.get("skills_selected", []):
+203: 599:             if isinstance(group, dict):
+204: 600:                 elements.append(group.get("category", ""))
+205: The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+206: 
+207: ------------------
+208: Step 989 viewed collect_all_tailored_text_elements
+209: Created At: 2026-07-19T09:39:16Z
+210: Completed At: 2026-07-19T09:39:17Z
+211: File Path: `file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py`
+212: Total Lines: 1373
+213: Total Bytes: 62066
+214: Showing lines 651 to 720
+215: The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+216: 651:                         break
+217: 652:                 if not word_matched:
+218: 653:                     all_words_matched = False
+219: 654:                     break
+220: 655:             if all_words_matched:
+221: 656:                 return True
+222: 657: 
+223: 658:         return False
+224: 659: 
+225: 660:     # Check skills
+226: 661:     for group in resume.get("skills_selected", []):
+227: 662:         if not isinstance(group, dict):
+228: 663:             continue
+229: 664:         category = group.get("category", "")
+230: 665:         for item in group.get("items", []):
+231: 666:             if is_exempt(item):
+232: 667:                 continue
+233: 668:             if not check_traceability(item):
+234: 669:                 unverified_items.append({
+235: 670:                     "item": item,
+236: 671:                     "location": f"skills category: {category}"
+237: 672:                 })
+238: 673: 
+239: 674:     # Check project tech_stack
+240: 675:     for proj in resume.get("projects", []):
+241: 676:         if not isinstance(proj, dict):
+242: 677:             continue
+243: 678:         name = proj.get("name", "")
+244: 679:         tech_stack = proj.get("tech_stack", "")
+245: 680:         if tech_stack:
+246: 681:             tech_items = [t.strip() for t in re.split(r"[,;]+", tech_stack) if t.strip()]
+247: 682:             for item in tech_items:
+248: 683:                 if is_exempt(item):
+249: 684:                     continue
+250: 685:                 if not check_traceability(item):
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+------------------

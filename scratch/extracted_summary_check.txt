@@ -1,0 +1,1042 @@
+Line 2205 (step 1528):
+Created At: 2026-07-19T16:32:48Z
+Completed At: 2026-07-19T16:32:49Z
+The following changes were made by the replace_file_content tool to: s:\RESUME_BUILDER_PROJECT\Resume-Tailor\gemini_service.py. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -968,281 +968,823 @@
+     for phrase in GENERIC_JD_PHRASES:
+         if phrase in bullet_lower:
+             errors.append(f"Generic JD phrase '{phrase}' copied without candidate context. Map to specific terms (e.g. REST APIs, web apps).")
+-    return errors
+-
+-
+-def check_skill_traceability(skills_selected: list[dict[str, Any]], master_resume: str) -> list[str]:
+-    """Checks if every technical skill listed in the skills_selected section is traceable to the master resume."""
+-    errors = []
+-    master_lower = master_resume.lower()
+-    for group in skills_selected:
+-        for item in group.get("items", []):
+-            item_clean = item.strip().lower()
+-            if not item_clean:
+-                continue
+-            
+-            # Simple substring check
+-            if item_clean in master_lower:
+-                continue
+-                
+-            # If not found, check if a direct acronym or primary token is traceable
+-            tokens = [t for t in re.split(r"[\s,;/()\-]+", item_clean) if len(t) > 2]
+-            if tokens and not any(t in master_lower for t in tokens):
+-                errors.append(f"Skill '{item}' under category '{group.get('category')}' has no supporting evidence in the master resume.")
+-    return errors
+-
+-
+-def regenerate_section_with_llm(
+-    section_name: str,
+-    current_content: Any,
+-    errors: list[str],
+-    master_resume: str,
+-    jd_text: str
+-) -> Any:
+-    """
+-    Use Gemini to rewrite a specific section (summary, skills, or bullets list) to fix quality issues.
+-    """
+-    from google import genai
+-    api_key = os.environ.get("GEMINI_API_KEY", "")
+-    if not api_key:
+-        return current_content
+-        
+-    client = genai.Client(api_key=api_key)
+-    
+-    errors_list = "\n".join(f"- {err}" for err in errors)
+-    
+-    if section_name == "summary":
+-        prompt = f"""You are a professional resume editor. We need to fix the Professional Summary section of a tailored resume.
+-The current tailored summary is:
+-"{current_content}"
+-
+-The summary failed quality checks for the following reasons:
+-{errors_list}
+-
+-Please rewrite the Professional Summary to fix these issues. 
+-Rules:
+-1. Absolutely NO banned buzzword openers (do not start with "Forward-thinking", "Dynamic", "Passionate", "Results-driven", "Motivated", "Dedicated", etc.). Open immediately with a concrete statement of the candidate's actual background/focus as it relates to the JD.
+-2. It must be written in a professional, natural, and active voice.
+-3. Every claim must remain 100% true based ONLY on the candidate's master resume below. Do not invent any new facts.
+-4. Do NOT mention the target company's name.
+-
+-Candidate's Master Resume:
+-{master_resume}
+-
+-Job Description:
+-{jd_text}
+-
+-Return ONLY the plain text of the rewritten summary. Do not add markdown formatting, JSON, or code fences.
+-"""
+-    elif section_name == "skills_selected":
+-        prompt = f"""You are a professional resume editor. We need to fix the Technical Skills section of a tailored resume.
+-The current technical skills list is:
+-{json.dumps(current_content)}
+-
+-The skills failed validation checks for the following reasons:
+-{errors_list}
+-
+-Please rewrite the Technical Skills section to fix these issues.
+-Rules:
+-1. Every skill item must trace back to the candidate's master resume below. Do NOT add any tools, languages, or platforms that do not exist in the candidate's master resume.
+-2. Group related items under normalized category headings to improve readability (e.g. Relational Databases (MySQL, SQLite) or Cloud Platforms (AWS, GCP)) only where appropriate.
+-3. Only reorder existing skills; do not delete any real skill the candidate possesses.
+-
+-Candidate's Master Resume:
+-{master_resume}
+-
+-Job Description:
+-{jd_text}
+-
+-Return the rewritten skills as a valid JSON array of category objects, e.g. [{{"category": "Languages", "items": ["Python", "SQL"]}}]. Do not add any text outside the JSON array.
+-"""
+-    else:  # projects or internships bullets
+-        bullets_str = "\n".join(f"- {b}" for b in current_content)
+-        prompt = f"""You are a professional resume editor. We need to fix the bullet points for the project or internship section "{section_name}".
+-The current bullets are:
+-{bullets_str}
+-
+-The bullets failed quality checks for the following reasons:
+-{errors_list}
+-
+-Please rewrite these bullets to fix these issues.
+-Rules:
+-1. Every bullet must lead with a strong, specific action verb in the past tense (e.g. "Built", "Designed", "Implemented", "Integrated", "Created", "Validated", "Improved", "Optimized", "Configured", "Analyzed", "Tested", "Maintained", "Refined", "Documented", "Verified", "Reviewed", "Generated", "Debugged"). Avoid weak/vague openers like "Worked on", "Helped with", "Responsible for", "Assisted in", "Involved in".
+-2. Do NOT repeat the same starting verb across bullets (ensure strong verb rotation).
+-3. Always use active voice. Avoid passive triggers (e.g., do not use "was developed", "were designed").
+-4. NO vague, generic filler closing phrases added purely to include a keyword (e.g. "to meet requirements", "mirroring project-level reporting requirements", "to ensure functionality"). Every sentence must convey real, specific, and professional information.
+-5. Keep bullets concise (ideally under 2 lines when rendered, around 100-200 characters each).
+-6. Avoid keyword stuffing and redundant repetition of the same phrase or fact across bullets.
+-7. Every claim must remain 100% true based ONLY on the candidate's master resume below. Do not invent any new facts.
+-
+-Candidate's Master Resume:
+-{master_resume}
+-
+-Job Description:
+-{jd_text}
+-
+-Return the rewritten bullets as a valid JSON array of strings, e.g. ["bullet 1", "bullet 2"]. Do not add any text outside the JSON array.
+-"""
+-
+-    system_instruction = "You are a professional resume editor and quality validator."
+-    
+-    try:
+-        response = generate_content_with_fallback(
+-            client=client,
+-            prompt=prompt,
+-            system_instruction=system_instruction,
+-            temperature=0.2
+-        )
+-        raw_text = response.text.strip()
+-        
+-        if section_name == "summary":
+-            raw_text = re.sub(r'^["\']|["\']$', '', raw_text)
+-            return raw_text.strip()
++ def clean_master_project_line(line: str) -> str:
++    # Strip leading bullets or numbering
++    line = re.sub(r'^\s*[\d\.\-\*•]+\s*', '', line).strip()
++    
++    # Regex for date range
++    date_pattern = r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{4}\s*(?:[-–—]|to)\s*(?:Present|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{4})\b'
++    
++    # Remove date range (with or without surrounding parentheses/brackets)
++    line = re.sub(rf'\(\s*{date_pattern}\s*\)', '', line, flags=re.IGNORECASE)
++    line = re.sub(rf'\[\s*{date_pattern}\s*\]', '', line, flags=re.IGNORECASE)
++    line = re.sub(date_pattern, '', line, flags=re.IGNORECASE).strip()
++    
++    # Strip any trailing delimiters (like dashes or commas) left over after date removal
++    line = re.sub(r'\s*[-–—,]+\s*$', '', line).strip()
++    return line
++
++
++def find_full_project_title_from_blob(ai_name: str, master_resume: str) -> str | None:
++    ai_name_lower = ai_name.lower().strip()
++    core_name = re.split(r'[\u2013-]', ai_name_lower)[0].strip()
++    if not core_name or len(core_name) < 4:
++        return None
++        
++    master_lower = master_resume.lower()
++    start_idx = master_lower.find(core_name)
++    if start_idx == -1:
++        words = [w for w in re.split(r'[^\w\d]+', core_name) if w]
++        if words and len(words[0]) >= 4:
++            start_idx = master_lower.find(words[0])
++            
++    if start_idx == -1:
++        return None
++        
++    # Search forward up to 250 characters for a date range
++    search_sub = master_resume[start_idx:start_idx + 250]
++    date_pattern = r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{4}\s*(?:[-–—]|to)\s*(?:Present|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{4})\b'
++    
++    match = re.search(date_pattern, search_sub, flags=re.IGNORECASE)
++    if match:
++        title_part = search_sub[:match.start()]
++    else:
++        title_part = search_sub.splitlines()[0]
++        
++    title_part = re.sub(r'^\s*[\d\.\-\*•]+\s*', '', title_part).strip()
++    title_part = re.sub(r'\s+', ' ', title_part).strip()
++    title_part = re.sub(r'\s*[-–—,]+\s*$', '', title_part).strip()
++    return title_part
++
++
++def restore_full_project_names(tailored_data: dict[str, Any], master_resume: str):
++    resume = tailored_data.get("tailored_resume", {})
++    projects = resume.get("projects", [])
++    if not projects:
++        return
++        
++    for proj in projects:
++        if not isinstance(proj, dict):
++            continue
++        ai_name = proj.get("name", "").strip()
++        if not ai_name:
++            continue
++            
++        full_title = find_full_project_title_from_blob(ai_name, master_resume)
++        if full_title and ai_name != full_title:
++            logger.info("Restoring project title: '%s' -> '%s'", ai_name, full_title)
++            proj["name"] = full_title
++
++
++def restore_project_links(tailored_data: dict[str, Any], master_resume: str):
++    resume = tailored_data.get("tailored_resume", {})
++    projects = resume.get("projects", [])
++    if not projects:
++        return
++        
++    master_lines = [line.strip() for line in master_resume.splitlines() if line.strip()]
++    
++    for proj in projects:
++        if not isinstance(proj, dict):
++            continue
++        name = proj.get("name", "")
++        if not name:
++            continue
++            
++        name_lower = name.lower()
++        name_clean = re.split(r"[\u2013-]", name_lower)[0].strip() # split by dash/en-dash
++        
++        proj_idx = -1
++        for i, line in enumerate(master_lines):
++            if name_clean in line.lower():
++                proj_idx = i
++                break
++                
++        if proj_idx != -1:
++            known_headers = {
++                "summary", "professional summary", "skills", "technical skills", 
++                "projects", "personal projects", "academic projects", 
++                "work experience", "experience", "employment", "professional experience",
++                "internships", "internship experience", "education", "certifications", "publications"
++            }
++            
++            master_links = []
++            for j in range(proj_idx, min(proj_idx + 8, len(master_lines))):
++                line_j = master_lines[j]
++                if j > proj_idx and line_j.lower().rstrip(":") in known_headers:
++                    break
++                
++                words = re.split(r'[\s|]+', line_j)
++                for w in words:
++                    w_clean = w.strip("(),;[]*•|")
++                    w_lower = w_clean.lower()
++                    if ("github.com" in w_lower or 
++                        "onrender.com" in w_lower or 
++                        "vercel.app" in w_lower or 
++                        "github.io" in w_lower or 
++                        w_lower.startswith("http://") or 
++                        w_lower.startswith("https://")):
++                        master_links.append(w_clean)
++            
++            if not master_links:
++                continue
++                
++            tailored_links = []
++            for k in ["github_link", "live_demo", "project_url", "website"]:
++                val = proj.get(k)
++                if val:
++                    tailored_links.append(val.strip().lower())
++            for link_item in proj.get("links", []):
++                if isinstance(link_item, str):
++                    tailored_links.append(link_item.strip().lower())
++                elif isinstance(link_item, dict) and link_item.get("url"):
++                    tailored_links.append(link_item["url"].strip().lower())
++                    
++            for m_link in master_links:
++                m_link_lower = m_link.lower()
++                is_present = False
++                for t_link in tailored_links:
++                    if m_link_lower in t_link or t_link in m_link_lower:
++                        is_present = True
++                        break
++                if not is_present:
++                    if "github.com" in m_link_lower:
++                        if not proj.get("github_link"):
++                            proj["github_link"] = m_link
++                            logger.info(f"Restored missing github_link for project '{name}': {m_link}")
++                    else:
++                        if not proj.get("live_demo"):
++                            proj["live_demo"] = m_link
++                            logger.info(f"Restored missing live_demo for project '{name}': {m_link}")
++                        elif not proj.get("project_url"):
++                            proj["project_url"] = m_link
++                            logger.info(f"Restored missing project_url for project '{name}': {m_link}")
++
++
++def validate_tailored_resume(tailored_data: dict[str, Any], master_resume: str, selected_keywords: list[str] | None = None, return_unverified: bool = False) -> list[str] | tuple[list[str], list[dict[str, str]]]:
++    """
++    Lightweight validation check:
++    a) Schema verification for required top-level keys
++    b) Check that tailored counts match ground truth entry_counts (projects, internships, education)
++    c) Buzzword checks in summary text
++    d) Skills section floor check (at least 5 total items)
++    e) Certifications & publications count checks against computed ground truth
++    f) Project links preservation check
++    g) Fabrication check: skills & project technologies must be present in raw master resume text
++    h) Keyword integration check: verify all user-selected keywords are integrated
++    """
++    # Restore/Correct project titles and links automatically
++    restore_full_project_names(tailored_data, master_resume)
++    restore_project_links(tailored_data, master_resume)
++    
++    errors = []
++    unverified_items = []
++
++    # a) required top-level keys
++    required_keys = {"tailored_resume", "entry_counts", "dashboard"}
++    missing_keys = required_keys - set(tailored_data.keys())
++    if missing_keys:
++        errors.append(f"Missing required top-level keys: {', '.join(missing_keys)}")
++        logger.warning("Validation (Schema check): FAIL. Missing keys: %s", missing_keys)
++        if return_unverified:
++            return errors, unverified_items
++        return errors
++    logger.info("Validation (Schema check): PASS")
++
++    resume = tailored_data["tailored_resume"]
++    counts = tailored_data["entry_counts"]
++
++    # Check inner keys
++    sub_keys = {"summary", "skills_selected", "projects", "internships_selected", "education", "certifications", "section_order", "section_titles"}
++    missing_sub = sub_keys - set(resume.keys())
++    if missing_sub:
++        errors.append(f"Missing required keys in tailored_resume: {', '.join(missing_sub)}")
++        logger.warning("Validation (Sub-keys check): FAIL. Missing sub-keys: %s", missing_sub)
++        if return_unverified:
++            return errors, unverified_items
++        return errors
++    logger.info("Validation (Sub-keys check): PASS")
++
++    # b) Entry count check for projects, internships_selected, education
++    sections_to_check = [
++        ("projects", "master_projects_count"),
++        ("internships_selected", "master_internships_count"),
++        ("education", "master_education_count"),
++    ]
++    for section_field, count_field in sections_to_check:
++        expected = counts.get(count_field, 0)
++        actual = len(resume.get(section_field, []))
++        if actual < expected:
++            errors.append(f"Entry count mismatch for section '{section_field}': tailored count ({actual}) is less than master count ({expected})")
++
++    # c) Buzzword checks in summary text
++    summary = resume.get("summary", "")
++    summary_errors = check_summary_text(summary)
++    if summary_errors:
++        errors.extend(summary_errors)
++
++    # d) Skills section floor check (at least 5 total items)
++    total_skills = 0
++    for group in resume.get("skills_selected", []):
++        if isinstance(group, dict):
++            total_skills += len(group.get("items", []))
++    if total_skills < 5:
++        errors.append(f"Skills section floor check failed: total skill items ({total_skills}) is less than 5.")
++
++    # e) Certifications & publications count checks against computed ground truth
++    master_blob = master_resume.lower()
++    
++    def count_approx_entries(section_keyword: str) -> int:
++        lines = master_resume.splitlines()
++        found_section = False
++        count = 0
++        for line in lines:
++            line_strip = line.strip()
++            if not line_strip:
++                continue
++            if section_keyword in line_strip.lower():
++                found_section = True
++                continue
++            if found_section:
++                # If we encounter next section header
++                if line_strip.isupper() and any(h in line_strip.lower() for h in ["education", "experience", "projects", "skills", "publications", "certifications"]):
++                    break
++                if line_strip.startswith(("-", "*", "•")) or re.match(r"^\d+\.", line_strip) or len(line_strip) > 5:
++                    count += 1
++        return count
++
++    cert_count_master = count_approx_entries("certifications")
++    actual_certs = len(resume.get("certifications", []))
++    if cert_count_master > 0 and actual_certs < cert_count_master:
++        errors.append(f"Certifications section: master resume has approximately {cert_count_master} entries, but tailored has {actual_certs}.")
++
++    pub_count_master = count_approx_entries("publications")
++    actual_pubs = len(resume.get("publications", []))
++    if pub_count_master > 0 and actual_pubs < pub_count_master:
++        errors.append(f"Publications section: master resume has approximately {pub_count_master} entries, but tailored has {actual_pubs}.")
++
++    # f) Project links preservation check
++    for proj in resume.get("projects", []):
++        if not isinstance(proj, dict):
++            continue
++        name = proj.get("name", "")
++        has_github_in_master = False
++        has_http_in_master = False
++        proj_idx = -1
++        master_lines = [line.strip() for line in master_resume.splitlines() if line.strip()]
++        name_clean = re.split(r"[\u2013-]", name.lower())[0].strip()
++        for i, line in enumerate(master_lines):
++            if name_clean in line.lower():
++                proj_idx = i
++                break
++        if proj_idx != -1:
++            known_headers = {
++                "summary", "professional summary", "skills", "technical skills", 
++                "projects", "personal projects", "academic projects", 
++                "work experience", "experience", "employment", "professional experience",
++                "internships", "internship experience", "education", "certifications", "publications"
++            }
++            for j in range(proj_idx, min(proj_idx + 8, len(master_lines))):
++                line_j = master_lines[j]
++                if j > proj_idx and line_j.lower().rstrip(":") in known_headers:
++                    break
++                if "github.com" in line_j.lower():
++                    has_github_in_master = True
++                if any(term in line_j.lower() for term in ["http", "live", "vercel.app", "github.io"]):
++                    has_http_in_master = True
++                    
++        tailored_has_links = False
++        if proj.get("github_link") or proj.get("project_url") or proj.get("live_demo") or proj.get("website") or proj.get("links") or proj.get("additional_links"):
++            tailored_has_links = True
++            
++        if (has_github_in_master or has_http_in_master) and not tailored_has_links:
++            errors.append(
++                f"Project links missing for project '{name}': master resume contains a link for this project, "
++                f"but no links were preserved in the tailored output. You must preserve all project links."
++            )
++
++    # g) Fabrication check with singular/plural and keyword exemptions
++    def get_word_variants(word: str) -> list[str]:
++        w = word.strip().lower()
++        if not w:
++            return []
++        variants = [w]
++        if w.endswith("s") and len(w) > 1:
++            variants.append(w[:-1])
+         else:
+-            cleaned = _strip_markdown_fences(raw_text)
+-            return json.loads(cleaned)
+-    except Exception as exc:
+-        logger.error("Failed to regenerate section %s: %s", section_name, exc)
+-        return current_content
+-
+-
+-def validate_and_correct_resume(
+-    tailored: dict[str, Any],
+-    master_resume: str,
+-    jd_text: str,
+-    master_entities: dict[str, Any] | None = None
+-) -> tuple[dict[str, Any], list[str]]:
+-    """
+-    Validates the tailored resume against quality rules and runs a self-correction loop
+-    using Gemini to rewrite failing sections up to 2 times.
+-    
+-    Returns:
+-        tuple of (finalized_tailored_dict, list_of_warning_strings)
+-    """
+-    warnings = []
+-    if not master_entities:
+-        master_entities = extract_master_entities(master_resume)
+-    
+-    # 1. Validate Professional Summary
+-    summary = tailored.get("summary", "")
+-    if summary:
+-        for attempt in range(2):
+-            errors = check_summary_text(summary)
+-            if not errors:
+-                break
+-            logger.info("Summary failed quality checks (attempt %d/2): %s. Regenerating...", attempt + 1, errors)
+-            summary = regenerate_section_with_llm("summary", summary, errors, master_resume, jd_text)
+-            
+-        errors = check_summary_text(summary)
+-        if errors:
+-            warnings.append(f"Summary quality check failed: {', '.join(errors)}")
+-        tailored["summary"] = summary
+-
+-    # 2. Validate Technical Skills Traceability & Readability
+-    skills = tailored.get("skills_selected", [])
+-    if skills:
+-        for attempt in range(2):
+-            errors = check_skill_traceability(skills, master_resume)
+-            if not errors:
+-                break
+-            logger.info("Skills failed quality checks (attempt %d/2): %s. Regenerating...", attempt + 1, errors)
+-            new_skills = regenerate_section_with_llm("skills_selected", skills, errors, master_resume, jd_text)
+-            if isinstance(new_skills, list) and all(isinstance(s, dict) for s in new_skills):
+-                skills = new_skills
+-                tailored["skills_selected"] = skills
+-            else:
+-                logger.warning("Regenerated skills were invalid format: %s", new_skills)
+-                
+-        errors = check_skill_traceability(skills, master_resume)
+-        if errors:
+-            warnings.append(f"Skills quality check failed: {', '.join(errors)}")
+-
+-    # Helper to validate and regenerate project/experience bullets
+-    def process_bullets_section(key: str, entry_name_field: str):
+-        entries = tailored.get(key, [])
+-        if not entries:
+-            return
+-            
+-        for entry in entries:
+-            name = entry.get(entry_name_field, "")
+-            bullets = entry.get("bullets", [])
+-            if not bullets:
+-                continue
+-                
+-            for attempt in range(2):
+-                all_errors = []
+-                # 1. Bullet-level checks
+-                for idx, bullet in enumerate(bullets):
+-                    b_errors = check_bullet_text(bullet)
+-                    if b_errors:
+-                        all_errors.extend([f"Bullet {idx+1}: {e}" for e in b_errors])
+-                    passive_errs = check_passive_voice(bullet)
+-                    if passive_errs:
+-                        all_errors.extend([f"Bullet {idx+1}: {e}" for e in passive_errs])
+-                    stuffing_errs = check_keyword_stuffing(bullet)
+-                    if stuffing_errs:
+-                        all_errors.extend([f"Bullet {idx+1}: {e}" for e in stuffing_errs])
+-                    generic_errs = check_generic_jd_phrases(bullet)
+-                    if generic_errs:
+-                        all_errors.extend([f"Bullet {idx+1}: {e}" for e in generic_errs])
+-
+-                # 2. Section-level checks
+-                verb_errs = check_repeated_starting_verbs(bullets)
+-                if verb_errs:
+-                    all_errors.extend(verb_errs)
+-                rep_errs = check_repeated_bullets(bullets)
+-                if rep_errs:
+-                    all_errors.extend(rep_errs)
+-                        
+-                if not all_errors:
+-                    break
+-                    
+-                logger.info("Bullets for %s failed quality checks (attempt %d/2): %s. Regenerating...", name, attempt + 1, all_errors)
+-                new_bullets = regenerate_section_with_llm(name, bullets, all_errors, master_resume, jd_text)
+-                if isinstance(new_bullets, list) and all(isinstance(b, str) for b in new_bullets):
+-                    bullets = new_bullets
+-                    entry["bullets"] = bullets
+-                else:
+-                    logger.warning("Regenerated bullets for %s were invalid format: %s", name, new_bullets)
+-                    
+-            # Run one final check to add warnings
+-            all_errors = []
+-            for idx, bullet in enumerate(bullets):
+-                b_errors = check_bullet_text(bullet)
+-                if b_errors:
+-                    all_errors.extend([f"Bullet {idx+1}: {e}" for e in b_errors])
+-                passive_errs = check_passive_voice(bullet)
+-                if passive_errs:
+-                    all_errors.extend([f"Bullet {idx+1}: {e}" for e in passive_errs])
+-                stuffing_errs = check_keyword_stuffing(bullet)
+-                if stuffing_errs:
+-                    all_errors.extend([f"Bullet {idx+1}: {e}" for e in stuffing_errs])
+-                generic_errs = check_generic_jd_phrases(bullet)
+-                if generic_errs:
+-                    all_errors.extend([f"Bullet {idx+1}: {e}" for e in generic_errs])
+-
+-            verb_errs = check_repeated_starting_verbs(bullets)
+-            if verb_errs:
+-                all_errors.extend(verb_errs)
+-            rep_errs = check_repeated_bullets(bullets)
+-            if rep_errs:
+-                all_errors.extend(rep_errs)
+-
+-            if all_errors:
+-                warnings.append(f"Bullets for '{name}' quality check failed: {', '.join(all_errors)}")
+-
+-    # 3. Validate Flagship Projects
+-    process_bullets_section("flagship_projects_selected", "name")
+-    
+-    # 4. Validate Other Projects
+-    process_bullets_section("other_projects_selected", "name")
+-    
+-    # 5. Validate Projects (just in case they are under "projects_selected")
+-    process_bullets_section("projects_selected", "name")
+-    
+-    # 6. Validate Internships
+-    process_bullets_section("internships_selected", "company")
+-    
+-    return tailored, warnings
++            variants.append(w + "s")
++        return variants
++
++    def match_phrase(p1: str, p2: str) -> bool:
++        p1_clean = p1.strip().lower()
++        p2_clean = p2.strip().lower()
++        if p1_clean == p2_clean:
++            return True
++        if p2_clean in get_word_variants(p1_clean) or p1_clean in get_word_variants(p2_clean):
++            return True
++        words1 = [w for w in re.split(r"[^\w\d]+", p1_clean) if len(w) > 2]
++        words2 = [w for w in re.split(r"[^\w\d]+", p2_clean) if len(w) > 2]
++        if words1 and words2 and len(words1) == len(words2):
++            all_words_matched = True
++            for w1, w2 in zip(words1, words2):
++                if w1 != w2 and w1 not in get_word_variants(w2) and w2 not in get_word_variants(w1):
++                    all_words_matched = False
++                    break
++            if all_words_matched:
++                return True
++        return False
++
++    def is_exempt(item: str) -> bool:
++        if not selected_keywords:
++            return False
++        for kw in selected_keywords:
++            if match_phrase(item, kw):
++                return True
++        return False
++
++    def check_traceability(item: str) -> bool:
++        item_clean = item.strip().lower()
++        if not item_clean:
++            return True
++        if item_clean in master_blob:
++            return True
++
++        whole_phrase_variants = get_word_variants(item_clean)
++        for variant in whole_phrase_variants:
++            if variant in master_blob:
++                return True
++
++        words = [w for w in re.split(r"[^\w\d]+", item_clean) if len(w) > 2]
++        if words:
++            all_words_matched = True
++            for word in words:
++                word_matched = False
++                for variant in get_word_variants(word):
++                    if variant in master_blob:
++                        word_matched = True
++                        break
++                if not word_matched:
++                    all_words_matched = False
++                    break
++            if all_words_matched:
++                return True
++        return False
++
++    for group in resume.get("skills_selected", []):
++        if not isinstance(group, dict):
++            continue
++        category = group.get("category", "")
++        for item in group.get("items", []):
++            if is_exempt(item):
++                continue
++            if not check_traceability(item):
++                unverified_items.append({
++                    "item": item,
++                    "location": f"skills category: {category}"
++                })
++
++    for proj in resume.get("projects", []):
++        if not isinstance(proj, dict):
++            continue
++        name = proj.get("name", "")
++        tech_stack = proj.get("tech_stack", "")
++        if tech_stack:
++            tech_items = [t.strip() for t in re.split(r"[,;]+", tech_stack) if t.strip()]
++            for item in tech_items:
++                if is_exempt(item):
++                    continue
++                if not check_traceability(item):
++                    unverified_items.append({
++                        "item": item,
++                        "location": f"project: {name}"
++                    })
++
++    # h) Keyword integration check
++    def collect_all_tailored_text_elements(res: dict[str, Any]) -> list[str]:
++        elements = []
++        if res.get("summary"):
++            elements.append(res["summary"])
++        for group in res.get("skills_selected", []):
++            if isinstance(group, dict):
++                elements.append(group.get("category", ""))
++                for item in group.get("items", []):
++                    elements.append(item)
++        for proj in res.get("projects", []):
++            if isinstance(proj, dict):
++                elements.append(proj.get("name", ""))
++                elements.append(proj.get("tech_stack", ""))
++                elements.extend(proj.get("bullets", []))
++        for intern in res.get("internships_selected", []):
++            if isinstance(intern, dict):
++                elements.append(intern.get("company", ""))
++                elements.append(intern.get("role", ""))
++                elements.extend(intern.get("bullets", []))
++        for edu in res.get("education", []):
++            if isinstance(edu, dict):
++                elements.append(edu.get("institution", ""))
++                elements.append(edu.get("degree", ""))
++        for cert in res.get("certifications", []):
++            if isinstance(cert, dict):
++                elements.append(cert.get("name", ""))
++                elements.append(cert.get("issuer", ""))
++        for pub in res.get("publications", []):
++            if isinstance(pub, dict):
++                elements.append(pub.get("title", ""))
++                elements.append(pub.get("publisher", ""))
++        for opt in res.get("optional_sections", []):
++            if isinstance(opt, dict):
++                elements.append(opt.get("title", ""))
++                for item in opt.get("items", []):
++                    if isinstance(item, dict):
++                        elements.append(item.get("name", ""))
++                        elements.append(item.get("organization", ""))
++                        elements.append(item.get("description", ""))
++                        elements.extend(item.get("bullets", []))
++        return [el.strip().lower() for el in elements if el and el.strip()]
++
++    def check_keyword_present_in_elements(keyword: str, elements: list[str]) -> bool:
++        kw_lower = keyword.strip().lower()
++        for el in elements:
++            if kw_lower in el:
++                return True
++        kw_variants = get_word_variants(kw_lower)
++        for variant in kw_variants:
++            for el in elements:
++                if variant in el:
++                    return True
++        kw_words = [w for w in re.split(r"[^\w\d]+", kw_lower) if len(w) > 2]
++        if kw_words:
++            for el in elements:
++                all_words_found = True
++                for word in kw_words:
++                    word_found = False
++                    for variant in get_word_variants(word):
++                        if variant in el:
++                            word_found = True
++                            break
++                    if not word_found:
++                        all_words_found = False
++                        break
++                if all_words_found:
++                    return True
++        return False
++
++    if selected_keywords:
++        all_elements = collect_all_tailored_text_elements(resume)
++        missing_keywords = []
++        for kw in selected_keywords:
++            present = check_keyword_present_in_elements(kw, all_elements)
++            logger.info("Validation (Keyword integration check - '%s'): Pass: %s", kw, present)
++            if not present:
++                missing_keywords.append(kw)
++        if missing_keywords:
++            errors.append(
++                f"Missing user-selected keywords: the following keywords were selected by the user to integrate "
++                f"but are completely missing from the generated resume: {', '.join(missing_keywords)}. "
++                f"You must integrate all user-selected keywords into appropriate sections (skills, summary, or bullets)."
++            )
++
++    # i) Project title verification
++    for proj in resume.get("projects", []):
++        if not isinstance(proj, dict):
++            continue
++        ai_name = proj.get("name", "")
++        expected_title = find_full_project_title_from_blob(ai_name, master_resume) or ""
++        logger.info("Validation (Project title comparison): Tailored Title: '%s' | Expected Master Title: '%s'", ai_name, expected_title)
++        if expected_title and ai_name != expected_title:
++            errors.append(f"Project title mismatch: tailored project name '{ai_name}' does not match expected master name '{expected_title}'")
++
++    if return_unverified:
++        return errors, unverified_items
++    return errors
++
++
++def get_buzzword_suggestions(phrase: str) -> str:
++    suggestions = {
++        "proven ability": (
++            "1. State directly what the candidate did (e.g., instead of 'Proven ability to build APIs', write 'Designed and scaled REST APIs using Python').\n"
++            "2. Focus on concrete outcomes (e.g., 'Implemented multi-tenant architectures and optimized SQL database queries')."
++        ),
++        "proven track record": (
++            "1. Focus on actual projects (e.g., instead of 'Proven track record of deploying apps', write 'Containerized and deployed enterprise application stacks').\n"
++            "2. State your specific achievements directly."
++        ),
++        "highly motivated": (
++            "1. Start with your technical background (e.g., 'Computer Science graduate with hands-on development experience in Python').\n"
++            "2. State your core expertise directly."
++        ),
++        "results-driven": (
++            "1. Focus on achievements (e.g., 'Developed a high-availability backend service resulting in X').\n"
++            "2. State what you have designed/shipped."
++        ),
++        "passionate": (
++            "1. State your specific domain interest or skillset directly (e.g., 'Software Engineer specializing in secure backend development').\n"
++            "2. Focus on technical competencies."
++        ),
++        "dynamic": (
++            "1. Open with your credentials (e.g., 'Software Engineer with experience across full-stack development')."
++        ),
++        "hardworking": (
++            "1. Open with your technical background."
++        ),
++        "seeking a challenging opportunity": (
++            "1. Skip the objective preamble entirely and open directly with the candidate's core expertise (e.g., 'Software Engineer with a focus on cloud-native application design')."
++        ),
++        "fast learner": (
++            "1. Focus on hands-on project experience to demonstrate learning capacity implicitly."
++        ),
++        "team player": (
++            "1. Focus on collaboration in your experiences (e.g., 'Collaborated on frontend implementations within agile teams')."
++        ),
++        "forward-thinking": (
++            "1. State the modern technologies you work with."
++        ),
++        "dedicated": (
++            "1. Focus on the results of your work."
++        ),
++        "proactive": (
++            "1. Focus on initiative shown in your bullets/summary."
++        ),
++        "committed to delivering": (
++            "1. State the direct outcomes of your development work."
++        )
++    }
++    return suggestions.get(phrase.lower().strip(), "State directly what the candidate has actually built/done, without any ability/skill-framing preamble at all.")
++
++
++def deterministic_buzzword_cleanup(summary_text: str) -> str:
++    original = summary_text
++    replacements = [
++        (r'\bproven ability to\b', 'experience in'),
++        (r'\bproven ability\b', 'ability'),
++        (r'\bproven track record of\b', 'experience in'),
++        (r'\bproven track record\b', 'experience'),
++        (r'\bcommitted to delivering\b', 'focused on'),
++        (r'\bseeking a challenging opportunity\b', ''),
++        (r'\bhighly motivated\b', ''),
++        (r'\bresults-driven\b', ''),
++        (r'\bpassionate\b', ''),
++        (r'\bdynamic\b', ''),
++        (r'\bhardworking\b', ''),
++        (r'\bfast learner\b', ''),
++        (r'\bteam player\b', ''),
++        (r'\bforward-thinking\b', ''),
++        (r'\bdedicated\b', ''),
++        (r'\bproactive\b', '')
++    ]
++    
++    cleaned = original
++    for pattern, repl in replacements:
++        def repl_func(match):
++            val = match.group(0)
++            if not repl:
++                return ""
++            if val[0].isupper():
++                return repl[0].upper() + repl[1:]
++            return repl
++            
++        cleaned = re.sub(pattern, repl_func, cleaned, flags=re.IGNORECASE)
++        
++    cleaned = re.sub(r'\s+', ' ', cleaned)
++    
++    def capitalize_sentence_starts(text: str) -> str:
++        text = text.strip()
++        if not text:
++            return ""
++        text = text[0].upper() + text[1:]
++        text = re.sub(r'\.\s+([a-z])', lambda m: ". " + m.group(1).upper(), text)
++        return text
++        
++    cleaned = capitalize_sentence_starts(cleaned)
++    cleaned = re.sub(r'\s*,\s*,', ',', cleaned)
++    cleaned = re.sub(r'\s*-\s*-', '-', cleaned)
++    cleaned = re.sub(r'\s*,\s*\.', '.', cleaned)
++    cleaned = re.sub(r'^\s*[-–—,\.]+\s*', '', cleaned)
++    cleaned = cleaned.strip()
++    
++    return cleaned
++
++
++def classify_skills_with_llm(client: Any, skills_list: list[str]) -> dict[str, str]:
++    """
++    Batches skill items and calls Gemini to classify each as TECHNICAL_SKILL or NOT_A_SKILL.
++    Returns a mapping of {original_item: classification}.
++    """
++    print(f"[UNCONDITIONAL_LOG] classify_skills_with_llm: Sent for classification: {skills_list}")
++    logger.info("classify_skills_with_llm: Sent for classification: %s", skills_list)
++    if not skills_list:
++        print("[UNCONDITIONAL_LOG] classify_skills_with_llm: empty skills list. Returning empty mapping.")
++        return {}
++        
++    system_instruction = (
++        "You are an expert technical resume parser and auditor. Your task is to classify "
++        "a list of proposed resume skill tags as either TECHNICAL_SKILL or NOT_A_SKILL.\n\n"
++        "Classification Rules:\n"
++        "1. TECHNICAL_SKILL: Must be a concrete, nameable, learnable technical noun: "
++        "a programming language, framework, library, developer tool, platform, protocol, "
++        "database, cloud service, or a recognized named technical methodology/certification "
++        "(e.g., 'SDLC', 'STLC', 'RBAC', 'Regression Testing', 'CI/CD', 'REST API', 'Wireshark', 'Docker').\n"
++        "2. NOT_A_SKILL: Any of the following:\n"
++        "   - Generic job-duty or testing-activity phrases (e.g., 'Test Plans', 'Test Plan Development', 'Test Case Design', 'Bug Tracking', 'Defect Documentation', 'Log Analysis', 'Troubleshooting', 'Functional Tests', 'Functional Testing', 'System Level Testing', 'Manual Testing', 'Integration Testing', 'Software Testing').\n"
++        "   - Bare, vague, or overly broad nouns with no specific technical referent (e.g., 'Security' alone, 'Encryption' alone, 'Software' alone, 'Hardware' alone, 'Quality' alone, 'Testing' alone, 'Development' alone).\n"
++        "   - Soft skills or gerund/verb-based activities (e.g., 'Communication', 'Collaboration', 'Problem Solving', 'Time Management', 'Stakeholder Communication', 'Requirements Gathering').\n\n"
++        "You must return a valid JSON list of objects matching this exact schema \u2014 no markdown, no prose, no code fences:\n"
++        "[\n"
++        "  {\n"
++        "    \"item\": \"<string>\",\n"
++        "    \"classification\": \"TECHNICAL_SKILL\" | \"NOT_A_SKILL\"\n"
++        "  }\n"
++        "]"
++    )
++    
++    prompt = f"Please classify the following proposed skill items:\n{json.dumps(skills_list, indent=2)}"
++    model = GEMINI_MODELS[0]
++    
++    try:
++        from google.genai import types as genai_types
++        response = client.models.generate_content(
++            model=model,
++            contents=prompt,
++            config=genai_types.GenerateContentConfig(
++                system_instruction=system_instruction,
++                temperature=0.0,
++                response_mime_type="application/json"
++            )
++        )
++        cleaned = _strip_markdown_fences(response.text)
++        data = json.loads(cleaned)
++        
++        mapping = {}
++        if isinstance(data, list):
++            for obj in data:
++                if isinstance(obj, dict) and "item" in obj and "classification" in obj:
++                    mapping[obj["item"].strip()] = obj["classification"].strip()
++        print(f"[UNCONDITIONAL_LOG] classify_skills_with_llm: API Call SUCCEEDED. Mapping: {mapping}")
++        logger.info("classify_skills_with_llm: API Call SUCCEEDED. Mapping: %s", mapping)
++        return mapping
++    except Exception as exc:
++        print(f"[UNCONDITIONAL_LOG] classify_skills_with_llm: API Call FAILED. Exception: {exc}")
++        logger.exception("Error in classify_skills_with_llm: %s", exc)
++        return {}
++
++
++def filter_non_skills_via_classification(client: Any, tailored_data: dict[str, Any], selected_keywords: list[str] | None = None):
++    resume = tailored_data.get("tailored_resume", {})
++    skills_selected = resume.get("skills_selected", [])
++    
++    all_skills = []
++    for group in skills_selected:
++        if isinstance(group, dict):
++            for item in group.get("items", []):
++                if isinstance(item, str) and item.strip():
++                    all_skills.append(item.strip())
++
++    print(f"[UNCONDITIONAL_LOG] filter_non_skills_via_classification: CALLED with {len(all_skills)} items")
++    logger.info("filter_non_skills_via_classification: CALLED with %d items", len(all_skills))
++    
++    if not skills_selected:
++        print("[UNCONDITIONAL_LOG] filter_non_skills_via_classification: skills_selected is empty. No filtering needed.")
++        return
++        
++    if not all_skills:
++        print("[UNCONDITIONAL_LOG] filter_non_skills_via_classification: all_skills is empty. No filtering needed.")
++        return
++        
++    classifications = classify_skills_with_llm(client, list(set(all_skills)))
++    if not classifications:
++        print("[UNCONDITIONAL_LOG] filter_non_skills_via_classification: Fail-safe fallback triggered because classifications mapping is empty (API failure). No skills stripped.")
++        logger.warning("filter_non_skills_via_classification: Fail-safe fallback triggered because classifications mapping is empty (API failure). No skills stripped.")
++        return
++
++    filtered_groups = []
++    for group in skills_selected:
++        if not isinstance(group, dict):
++            filtered_groups.append(group)
++            continue
++            
++        category = group.get("category", "")
++        items = group.get("items", [])
++        new_items = []
++        for item in items:
++            if not isinstance(item, str):
++                new_items.append(item)
++                continue
++                
++            item_strip = item.strip()
++            cls = classifications.get(item_strip, "TECHNICAL_SKILL")
++            if cls == "NOT_A_SKILL":
++                is_user_selected = False
++                if selected_keywords:
++                    item_clean = item_strip.lower()
++                    for kw in selected_keywords:
++                        kw_clean = kw.strip().lower()
++                        if item_clean == kw_clean or (item_clean.endswith('s') and item_clean[:-1] == kw_clean) or (kw_clean.endswith('s') and kw_clean[:-1] == item_clean):
++                            is_user_selected = True
++                            break
++                if is_user_selected:
++                    new_items.append(item)
++                    print(f"[UNCONDITIONAL_LOG] filter_non_skills_via_classification: Preserved user-selected keyword: '{item}'")
++                else:
++                    print(f"[UNCONDITIONAL_LOG] filter_non_skills_via_classification: Stripped non-technical skill item: '{item}'")
++                    logger.info("Stripped non-technical skill item via LLM classification: '%s'", item)
++            else:
++                new_items.append(item)
++        new_group = dict(group)
++        new_group["items"] = new_items
++        filtered_groups.append(new_group)
++        
++    resume["skills_selected"] = filtered_groups
++
++
++def deduplicate_skills_selected(skills_selected: list[Any]) -> list[Any]:
++    if not skills_selected:
++        return skills_selected
++        
++    def are_near_duplicates(item1: str, item2: str) -> bool:
++        i1 = item1.strip().lower()
++        i2 = item2.strip().lower()
++        if i1 == i2:
++            return True
++        if i1.endswith('s') and i1[:-1] == i2:
++            return True
++        if i2.endswith('s') and i2[:-1] == i1:
++            return True
++        return False
++
++    # 1. Within-category deduplication
++    deduped_groups = []
++    for group in skills_selected:
++        if not isinstance(group, dict):
++            deduped_groups.append(group)
++            continue
++            
++        category = group.get("category", "")
++        items = group.get("items", [])
++        if not items:
++            
+<truncated 3059 bytes>
+
+NOTE: The output was truncated because it was too long. Use a more targeted query or a smaller range to get the information you need.
+================================================================================

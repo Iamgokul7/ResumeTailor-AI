@@ -1,0 +1,901 @@
+Line 963 (step 594):
+Created At: 2026-07-18T15:47:43Z
+Completed At: 2026-07-18T15:47:45Z
+The following changes were made by the replace_file_content tool to: s:\RESUME_BUILDER_PROJECT\Resume-Tailor\gemini_service.py. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -734,7 +734,14 @@
+     for attempt in range(2):
+         current_prompt = prompt
+         if feedback_instruction:
+-            current_prompt += f"\n\n⚠️ PREVIOUS ATTEMPT REJECTED due to validation issues. Please fix these:\n{feedback_instruction}\nReturn the complete corrected JSON."
++            current_prompt += (
++                f"\n\n⚠️ PREVIOUS ATTEMPT REJECTED due to validation issues. Please fix these:\n{feedback_instruction}\n"
++                f"\nCRITICAL: You MUST NOT repeat any of the rejected buzzwords, clichés, or format errors in your response. "
++                f"Double-check your output and return the complete corrected JSON."
++            )
++
++        # Use higher temperature on second attempt to avoid getting stuck on the same phrasing
++        temp = 0.2 if attempt == 0 else 0.7
+ 
+         try:
+             response = generate_content_with_fallback(
+@@ -741,9 +741,9 @@
+                 prompt=current_prompt,
+                 system_instruction=SYSTEM_INSTRUCTION,
+-                temperature=0.4
++                temperature=temp
+             )
+             raw_text = response.text
+-            logger.info("Received Gemini response (%d chars) on attempt %d.", len(raw_text), attempt + 1)
++            logger.info("Received Gemini response (%d chars) on attempt %d with temp %.1f.", len(raw_text), attempt + 1, temp)
+             
+             # Parse response JSON
+             cleaned = _strip_markdown_fences(raw_text)
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+================================================================================
+Line 2005 (step 1328):
+{{ CHECKPOINT 9 }}
+ **The earlier parts of this conversation have been truncated due to its long length. The following content summarizes the truncated context so that you may continue your work. **
+
+
+# User Requests
+The following were user requests from the truncated conversation in chronological order:
+1. ANTIGRAVITY TASK — Fix false-positive fabrication check (plural/singular
+and minor word-form mismatches incorrectly flagged as fabrication)
+
+CONTEXT: A real end-to-end generation failed with the error:
+"Fabrication check failed: technical skill 'REST APIs' (under category
+'Tools & Design') has no supporting evidence in the master resume"
+
+This is a FALSE POSITIVE. The master resume text contains "REST API
+design" (singular "API"), and the AI tailored it to "REST APIs" (plural)
+— a completely valid, harmless word-form variation, not a fabricated
+skill. The current fabrication check is doing an exact or near-exact
+substring match that fails on basic plural/singular differences, and
+likely on similar minor variations (e.g. "Database" vs "Databases",
+"Framework" vs "Frameworks", hyphenation differences, etc.).
+
+FIX:
+File: gemini_service.py, wherever the fabrication/traceability check
+against the master resume text is implemented (the function checking
+skills_selected items and project tech_stack items agai
+<truncated 2179 bytes>
+2. ANTIGRAVITY TASK — User-selected keywords must be exempt from the
+fabrication check; note buzzword retry issue for later
+
+CONTEXT: A real generation failed with:
+"Fabrication check failed: technical skill 'Object-oriented programming'
+(under category 'Databases & Data') has no supporting evidence in the
+master resume"
+
+This is NOT a fabrication. "Object-oriented programming" was explicitly
+selected by the user in the keyword selection step (the "Keywords to
+Integrate" box, populated from selected_keywords passed into
+/api/generate-resume). The fabrication check should never block a
+keyword the user themselves explicitly chose to integrate — the user is
+the authority on their own resume content, and keyword selection is a
+deliberate, informed action, not the AI inventing something unprompted.
+
+FIX — Exempt user-selected keywords from the fabrication check:
+File: gemini_service.py, wherever the fabrication/traceability check is
+implemented (the function checking skills_selected items and project
+tech_s
+<truncated 2816 bytes>
+3. ANTIGRAVITY TASK — Fix 2 confirmed issues: project titles still
+truncated (regression), and selected keywords not fully integrated
+
+CONTEXT: Two real end-to-end tests (same master resume, same JD, two
+separate generation runs) both show these issues persisting.
+
+ISSUE 1 — Project titles still being shortened (REGRESSION)
+A previous fix added a hard validation check comparing tailored project
+titles against the master resume's exact titles. Despite this,
+generated output still consistently shows shortened titles:
+"ResumeTailor AI" instead of the full master resume title
+"ResumeTailor AI — AI-Powered, ATS-Safe Resume Customization Engine"
+(same issue across all 4 projects, confirmed on 2 separate real runs).
+
+Do NOT simply re-report this as fixed again. Investigate why the
+previous title-integrity validation check is not actually catching or
+correcting this in production:
+1. Locate the title-integrity check added in the previous fix (likely
+   in validate_tailored_resume() in gemini_service.py). Add ex
+<truncated 5153 bytes>
+4. ANTIGRAVITY TASK — Buzzword validation failures should self-correct with
+additional retries instead of immediately surfacing an error to the user
+
+CONTEXT: A real generation failed with:
+"Resume validation failed after 2 attempts: Summary text contains the
+banned buzzword phrase 'proven ability'."
+
+This was previously flagged as a known issue (retry-feedback loop not
+reliably preventing Gemini from repeating a banned phrase) but left
+unfixed. It has now resurfaced as a blocking, user-facing error. The
+user should not see a raw validation failure for something the system
+can reasonably self-correct — the app should try harder before giving up.
+
+FIX — Increase retry budget specifically for buzzword/cliché failures,
+with escalating correction pressure:
+
+File: gemini_service.py, generate_tailored_resume()
+
+1. Increase the maximum retry attempts from 2 to 4 total attempts,
+   but ONLY continue retrying automatically if the failure reason is a
+   banned buzzword/cliché match. For other failure types (fab
+<truncated 2910 bytes>
+5. ANTIGRAVITY TASK — Deduplicate near-identical skill items before rendering
+
+CONTEXT: Real generation testing found a minor cosmetic issue: the
+skills section sometimes lists near-duplicate items separately, e.g.
+"REST API" and "REST APIs" both appearing under the same category, when
+they represent the same skill. This is not a fabrication or factual
+error, just a display duplication that should be cleaned up before the
+resume is rendered.
+
+FIX:
+File: gemini_service.py, likely inside generate_tailored_resume() after
+Gemini's response is received and validated, before the final JSON is
+returned/rendered.
+
+Add a deduplication step for skills_selected:
+1. For each category in skills_selected, compare every pair of items
+   within that same category using the same normalization already used
+   elsewhere in the codebase (lowercase, trim whitespace) plus the
+   existing singular/plural tolerance logic (strip/add trailing 's').
+2. If two items in the same category normalize to the same base form
+   (e.g. "REST A
+<truncated 1990 bytes>
+6. ANTIGRAVITY TASK — Make fabrication check failures non-blocking with a
+visible warning in the app UI, instead of hard-failing generation
+
+CONTEXT: Currently, if the fabrication check (or any hard validation
+check) fails after all retry attempts, the app shows a red error screen
+("Something went wrong") and produces no resume at all. This is too
+disruptive for cases where the AI adds one unverified skill among many
+correct ones — the user should still get their resume, with a clear,
+visible warning about anything unverified, so THEY decide whether to
+keep it or remove it. The user, not the AI or the validator, should
+have final control over their own resume content.
+
+SCOPE OF THIS CHANGE — READ CAREFULLY:
+This change applies ONLY to the fabrication/traceability check
+(unverified skills/tech in skills_selected or project tech_stack that
+are not in the master resume AND not in user-selected keywords). It
+does NOT apply to any other validation check. The following checks must
+remain HARD BLOCKING exactly
+<truncated 4425 bytes>
+7. ANTIGRAVITY TASK — Fix 2 confirmed issues: missing project live demo
+link, and skill category misplacement/duplication
+
+CONTEXT: Real end-to-end testing found two issues in a generation using
+the Gokul_P_Master_Resume.pdf and a MERN/MEAN stack JD.
+
+ISSUE 1 — Project's Live Demo link missing from output
+CONFIRMED EXAMPLE: Master resume lists for ResumeTailor AI:
+"GitHub: github.com/Iamgokul7/ResumeTailor-AI | Live: resume-tailorj5zl.onrender.com"
+Generated output only included the GitHub link — the Live Demo link was
+dropped entirely. This is intermittent (other recent test runs
+correctly included both links), suggesting the AI sometimes omits a
+project's live_demo field non-deterministically rather than this being
+a rendering bug (since other links render correctly when present).
+
+FIX:
+File: gemini_service.py, SYSTEM_INSTRUCTION and/or
+validate_tailored_resume()
+
+1. Reinforce in SYSTEM_INSTRUCTION: "Every link field present in a
+   project entry in the master resume (github_link, live_demo,
+   projec
+<truncated 4907 bytes>
+8. ANTIGRAVITY TASK — Enforce skills-section content rules: only real
+technical skills belong there, not generic job-activity phrases
+
+CONTEXT: Real testing (Qualcomm Systems Test Engineering JD) shows the
+skills section including items like "Troubleshooting", "Defect
+Documentation", "Test Plans", "Functional Tests" — these are job
+activities/duties, not actual technical skills, tools, or technologies.
+A professional Technical Skills section should only contain concrete,
+nameable things: programming languages, frameworks, libraries, tools,
+platforms, databases, protocols, or recognized methodologies/
+certifications (e.g. "Regression Testing", "SDLC", "STLC", "RBAC" are
+fine — these are real named technical/industry terms). Generic action
+phrases that just restate a job duty (e.g. "Troubleshooting",
+"Problem-solving", "Defect Documentation", "Test Plans", "Communication")
+do NOT belong in the skills section — they belong, if anywhere, in the
+summary or project/internship bullets as demonstrated actions
+<truncated 3529 bytes>
+9. ANTIGRAVITY TASK — Replace denylist-based skill filtering with a
+generic, reasoning-based classification rule (must work for ANY JD/
+resume, not just ones already tested)
+
+CONTEXT: The app is being prepared for public deployment as a live
+product used by arbitrary users with arbitrary resumes and job
+descriptions. A fixed denylist of banned phrases (e.g.
+"troubleshooting", "test plans") does not generalize — any new JD can
+introduce different job-duty phrasing not on the list, and it will
+slip through uncaught. We need a durable, general rule, not a growing
+list of known offenders.
+
+ALSO CONFIRM AND FIX (unresolved from previous task): the existing
+skill-filtering logic was verified only via an isolated test script and
+does NOT appear to be taking effect on the actual live
+/api/generate-resume server path — a real generation through the
+running server still shows generic phrases like "Troubleshooting",
+"Test Plans", "Defect Documentation", "Bug Tracking", "Log Analysis",
+"Functional Tests" in the out
+<truncated 4856 bytes>
+10. ANTIGRAVITY TASK — Skill classification filter still not taking effect
+on real user generations; find the actual root cause with mandatory
+failure-path logging
+
+CONTEXT: This is the THIRD consecutive round where a fix to the skills
+section was reported as verified via a live-server test, but a real
+generation performed by the actual user through the actual browser UI
+still shows the exact same unfiltered output — generic job-duty phrases
+("Test Plans", "Bug Tracking", "Log Analysis", "Troubleshooting",
+"Functional Tests") and bare vague terms ("Security", "Encryption")
+still present in the Technical Skills section, completely unfiltered,
+identical to output from before the classification fix was supposedly
+implemented.
+
+Given this repeated pattern, the previous test methodology (an isolated
+script, even one making HTTP calls) is NOT sufficient proof and clearly
+does not reproduce whatever is happening in the user's real session.
+Do not report this as fixed again without directly reconciling why the
+us
+<truncated 2905 bytes>
+
+# Previous Session Summary:
+### 1. Outstanding User Requests
+* **Reconstruct Reverted Code in `gemini_service.py`** (Status: **IMPLEMENTATION**)
+  * *Context*: An accidental `git checkout gemini_service.py` was executed, which reverted `gemini_service.py` to the July 14, 2026 HEAD commit. This wiped all the uncommitted changes made during tasks 1–10 (including `validate_tailored_resume()`, `deduplicate_skills_selected()`, `restore_project_links()`, `restore_full_project_names()`, `find_full_project_title_from_blob()`, etc.).
+  * *Action Required*: The next agent must recover the wiped code chunks by reading the tool args in `C:\Users\iamgo\.gemini\antigravity-ide\brain\c6653bea-d8c3-43f6-946d-085d069d41d7\.system_generated\logs\transcript_full.jsonl` (which preserves the full text of all previous `replace_file_content` calls) and reconstruct `gemini_service.py`. The unit tests in [test_pipeline.py](file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/test_pipeline.py) (which remain intact on disk) serve as the validation spec.
+* **Resolve Skill Classification Filter Issues in Production** (Status: **PLANNING / IMPLEMENTATION**)
+  * *Context*: "This is the THIRD consecutive round where a fix to the skills section was reported as verified via a live-server test, but a real generation performed by the actual user through the actual browser UI still shows the exact same unfiltered output — generic job-duty phrases ("Test Plans", "Bug Tracking", "Log Analysis", "Troubleshooting", "Functional Tests") and bare vague terms ("Security", "Encryption") still present."
+  * *Sub-tasks*:
+    1. Update the classification system prompt in `classify_skills_with_llm()` to explicitly treat generic testing activities and broad bare nouns (e.g. `'Security'`, `'Encryption'`) as `NOT_A_SKILL`.
+    2. Change the validation sequence in `generate_tailored_resume()` to run the classification filter (`filter_non_skills_via_classification`) **before** running `validate_tailored_resume()`. This ensures that stripped skills do not trigger unverified warnings.
+    3. Run `scratch/test_live_server.py` targeting the active port `8001` and output successful logs/skills sections.
+
+---
+
+### 2. User Knowledge
+* **Rules & Constraints**:
+  * "Fabrication check failures must be non-blocking with a visible warning in the app UI, instead of hard-failing generation."
+  * "User-selected keywords must be exempt from the fabrication check."
+  * "Buzzword validation failures should self-correct with additional retries (up to 4 attempts) instead of immediately surfacing an error."
+  * "Deduplicate near-identical skill items before rendering."
+  * "Project's Live Demo link must be preserved/restored."
+  * "Skills-section content rules: only real technical skills belong there, not generic job-activity phrases."
+
+---
+
+### 3. Work Accomplished
+* **Frontend UI Modifications (Intact)**: The warning containers, warning rendering logic, and PDF generation updates in `static/app.js`, `static/index.html`, `main.py`, and `pdf_service.py` are all preserved.
+* **Unit Tests Spec (Intact)**: [test_pipeline.py](file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/test_pipeline.py) contains all the unit tests (Tests 2.11 to 2.22) representing the full functionality of the pipeline.
+
+---
+
+### 4. Model Knowledge
+* **Reversion Discovery**: Running `git checkout gemini_service.py` discarded the uncommitted disk edits for `gemini_service.py` but left other modified files intact.
+* **Source of Recovery**: `transcript_full.jsonl` contains the exact code changes that were deleted.
+  * Look for the tool call arguments of `replace_file_content` targeting `gemini_service.py` around lines 800-1145 in `transcript.jsonl` or `transcript_full.jsonl`.
+* **Validation Sequencing**: Running `filter_non_skills_via_classification()` before `validate_tailored_resume()` is necessary because the skills floor check depends on the final filtered list, and we must not show unverified warnings for items that are stripped.
+
+---
+
+### 5. Files and Code
+* **Modified Files (Preserved on Disk)**:
+  * [main.py](file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/main.py): FastAPI routing and models (includes returning `unverified_skills` field).
+  * [test_pipeline.py](file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/test_pipeline.py): Entire test suite containing logic tests for deduplication, restoration, fabrication, and classification.
+  * [static/app.js](file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/static/app.js) & [static/index.html](file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/static/index.html): Frontend warnings UI.
+* **Viewed Files**:
+  * [gemini_service.py](file:///s:/RESUME_BUILDER_PROJECT/Resume-Tailor/gemini_service.py): Reverted to July 14 version (1213 lines).
+
+---
+
+### 6. Current Work and Next Steps
+1. **Restore `gemini_service.py`**:
+   * Search `C:\Users\iamgo\.gemini\antigravity-ide\brain\c6653bea-d8c3-43f6-946d-085d069d41d7\.system_generated\logs\transcript_full.jsonl` for `"replace_file_content"` targeting `gemini_service.py`.
+   * Re-apply the validation blocks, link restoration, deduplication, and retry logic.
+2. **Apply Classification Filter Refinements**:
+   * Add negative classification constraints to the prompt in `classify_skills_with_llm()` to strip broad bare nouns and generic testing activities.
+   * Call `filter_non_skills_via_classification()` before `validate_tailored_resume()` in `generate_tailored_resume()`.
+3. **Verify**:
+   * Run `python test_pipeline.py` to ensure all tests pass.
+   * Run the live server on port `8001` and verify with `python scratch/test_live_server.py`.
+
+You have the 73 following artifacts written to the artifacts directory:
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784365450253]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784365450253.png
+Last Edited: 2026-07-18T09:04:10Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784365503720]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784365503720.png
+Last Edited: 2026-07-18T09:05:03Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784365545016]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784365545016.png
+Last Edited: 2026-07-18T09:05:45Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784370624023]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784370624023.png
+Last Edited: 2026-07-18T10:30:24Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784370881934]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784370881934.png
+Last Edited: 2026-07-18T10:34:41Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784372843890]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784372843890.png
+Last Edited: 2026-07-18T11:07:23Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784372872086]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784372872086.png
+Last Edited: 2026-07-18T11:07:52Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384408328]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384408328.png
+Last Edited: 2026-07-18T14:20:08Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384504951]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384504951.png
+Last Edited: 2026-07-18T14:21:44Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384553608]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384553608.png
+Last Edited: 2026-07-18T14:22:33Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384579181]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384579181.png
+Last Edited: 2026-07-18T14:22:59Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384607131]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384607131.png
+Last Edited: 2026-07-18T14:23:27Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384621031]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384621031.png
+Last Edited: 2026-07-18T14:23:41Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384701797]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384701797.png
+Last Edited: 2026-07-18T14:25:01Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384715986]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784384715986.png
+Last Edited: 2026-07-18T14:25:16Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784386811677]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784386811677.png
+Last Edited: 2026-07-18T15:00:11Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784387138766]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784387138766.png
+Last Edited: 2026-07-18T15:05:38Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784448871284]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784448871284.png
+Last Edited: 2026-07-19T08:14:31Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784448879456]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784448879456.png
+Last Edited: 2026-07-19T08:14:39Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784448947648]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784448947648.png
+Last Edited: 2026-07-19T08:15:47Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449162933]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449162933.png
+Last Edited: 2026-07-19T08:19:22Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449188695]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449188695.png
+Last Edited: 2026-07-19T08:19:48Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449203401]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449203401.png
+Last Edited: 2026-07-19T08:20:03Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449237096]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449237096.png
+Last Edited: 2026-07-19T08:20:37Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449253165]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449253165.png
+Last Edited: 2026-07-19T08:20:53Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449267296]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449267296.png
+Last Edited: 2026-07-19T08:21:07Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449295209]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449295209.png
+Last Edited: 2026-07-19T08:21:35Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449450518]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449450518.png
+Last Edited: 2026-07-19T08:24:10Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449465880]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449465880.png
+Last Edited: 2026-07-19T08:24:25Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449477914]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449477914.png
+Last Edited: 2026-07-19T08:24:37Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449972951]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784449972951.png
+Last Edited: 2026-07-19T08:32:52Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784450255370]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784450255370.png
+Last Edited: 2026-07-19T08:37:35Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784450665981]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784450665981.png
+Last Edited: 2026-07-19T08:44:25Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784476086375]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784476086375.png
+Last Edited: 2026-07-19T15:48:06Z
+
+[ARTIFACT: media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784476576946]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.tempmediaStorage/media_c6653bea-d8c3-43f6-946d-085d069d41d7_1784476576946.png
+Last Edited: 2026-07-19T15:56:16Z
+
+[ARTIFACT: after_browse_click_1784476577000]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/after_browse_click_1784476577000.png
+Last Edited: 2026-07-19T15:56:17Z
+
+[ARTIFACT: scratchpad_0byspj76]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_0byspj76.md
+Last Edited: 2026-07-19T08:13:24Z
+
+[ARTIFACT: scratchpad_1irkvgqq]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_1irkvgqq.md
+Last Edited: 2026-07-18T11:03:54Z
+
+[ARTIFACT: scratchpad_4olywo7x]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_4olywo7x.md
+Last Edited: 2026-07-18T10:34:45Z
+
+[ARTIFACT: scratchpad_7quxtvvk]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_7quxtvvk.md
+Last Edited: 2026-07-18T15:06:05Z
+
+[ARTIFACT: scratchpad_bb09quwa]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_bb09quwa.md
+Last Edited: 2026-07-19T08:45:57Z
+
+[ARTIFACT: scratchpad_iufhpdn3]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_iufhpdn3.md
+Last Edited: 2026-07-18T09:07:49Z
+
+[ARTIFACT: scratchpad_kdesikxf]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_kdesikxf.md
+Last Edited: 2026-07-19T16:09:55Z
+
+[ARTIFACT: scratchpad_meqweznv]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_meqweznv.md
+Last Edited: 2026-07-18T14:26:13Z
+
+[ARTIFACT: scratchpad_p1r1h2xt]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_p1r1h2xt.md
+Last Edited: 2026-07-18T15:45:32Z
+
+[ARTIFACT: scratchpad_wallz2p8]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/browser/scratchpad_wallz2p8.md
+Last Edited: 2026-07-19T08:14:41Z
+
+[ARTIFACT: dashboard_scores_success_1784365545071]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/dashboard_scores_success_1784365545071.png
+Last Edited: 2026-07-18T09:05:45Z
+
+[ARTIFACT: download_success_1784387138824]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/download_success_1784387138824.png
+Last Edited: 2026-07-18T15:05:38Z
+
+[ARTIFACT: embedded_pdf_screenshot_1784372872109]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/embedded_pdf_screenshot_1784372872109.png
+Last Edited: 2026-07-18T11:07:52Z
+
+[ARTIFACT: end_to_end_web_run_1784372437783]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/end_to_end_web_run_1784372437783.webp
+Last Edited: 2026-07-18T11:14:17Z
+
+[ARTIFACT: fabrication_warning_demo_1784448646358]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/fabrication_warning_demo_1784448646358.webp
+Last Edited: 2026-07-19T08:17:41Z
+
+[ARTIFACT: fabrication_warnings_displayed]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/fabrication_warnings_displayed.png
+Last Edited: 2026-07-19T08:44:26Z
+
+[ARTIFACT: fabrication_warnings_displayed_1784450666034]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/fabrication_warnings_displayed_1784450666034.png
+Last Edited: 2026-07-19T08:44:26Z
+
+[ARTIFACT: file_mocked_success_1784365450327]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/file_mocked_success_1784365450327.png
+Last Edited: 2026-07-18T09:04:10Z
+
+[ARTIFACT: file_uploaded_page_1784450255422]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/file_uploaded_page_1784450255422.png
+Last Edited: 2026-07-19T08:37:35Z
+
+[ARTIFACT: implementation_plan]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/implementation_plan.md
+Last Edited: 2026-07-18T14:58:28Z
+
+[ARTIFACT: investigation_report]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/investigation_report.md
+Last Edited: 2026-07-18T07:53:47Z
+
+[ARTIFACT: keyword_exemption_test_1784386801301]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/keyword_exemption_test_1784386801301.webp
+Last Edited: 2026-07-18T15:12:00Z
+
+[ARTIFACT: keyword_integration_e2e_1784389166233]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/keyword_integration_e2e_1784389166233.webp
+Last Edited: 2026-07-18T15:51:27Z
+
+[ARTIFACT: keywords_selected_success_1784365503784]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/keywords_selected_success_1784365503784.png
+Last Edited: 2026-07-18T09:05:03Z
+
+[ARTIFACT: main_page_1784476086464]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/main_page_1784476086464.png
+Last Edited: 2026-07-19T15:48:06Z
+
+[ARTIFACT: manual_verification_b5_1784370611743]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/manual_verification_b5_1784370611743.webp
+Last Edited: 2026-07-18T10:38:49Z
+
+[ARTIFACT: manual_web_test_1784365005649]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/manual_web_test_1784365005649.webp
+Last Edited: 2026-07-18T09:11:17Z
+
+[ARTIFACT: plural_singular_test_1784384395739]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/plural_singular_test_1784384395739.webp
+Last Edited: 2026-07-18T14:33:10Z
+
+[ARTIFACT: qualcomm_e2e_demo_1784476075081]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/qualcomm_e2e_demo_1784476075081.webp
+Last Edited: 2026-07-19T16:21:40Z
+
+[ARTIFACT: rendered_pdf_view_1784372843907]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/rendered_pdf_view_1784372843907.png
+Last Edited: 2026-07-18T11:07:23Z
+
+[ARTIFACT: buzzword_retry_note]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/scratch/buzzword_retry_note.txt
+Last Edited: 2026-07-18T15:06:22Z
+
+[ARTIFACT: generate_full_codebase_pdf]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/scratch/generate_full_codebase_pdf.py
+Last Edited: 2026-07-18T08:13:09Z
+
+[ARTIFACT: tailored_resume_result_1784449973034]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/tailored_resume_result_1784449973034.png
+Last Edited: 2026-07-19T08:32:53Z
+
+[ARTIFACT: task]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/task.md
+Last Edited: 2026-07-19T16:10:18Z
+
+[ARTIFACT: walkthrough]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/walkthrough.md
+Last Edited: 2026-07-19T16:10:12Z
+
+[ARTIFACT: warning_card_demo_1784450001599]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/warning_card_demo_1784450001599.webp
+Last Edited: 2026-07-19T08:54:12Z
+
+[ARTIFACT: warning_gate_demo_1784448847066]
+Path: file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/warning_gate_demo_1784448847066.webp
+Last Edited: 2026-07-19T08:49:55Z
+
+# Running Background Tasks
+The following background tasks were running at the time this checkpoint was created.
+Use the manage_task tool to interact with them (e.g. to kill them or check their status).
+
+{
+  "taskId": "c6653bea-d8c3-43f6-946d-085d069d41d7/task-1133",
+  "toolName": "run_command",
+  "toolSummary": "Starting server on port 8000",
+  "description": ".\\.venv\\Scripts\\python -m uvicorn main:app --port 8000",
+  "startTime": "2026-07-19T16:17:34.458583900Z",
+  "stepIndex": 1133,
+  "logUri": "file:///C:/Users/iamgo/.gemini/antigravity-ide/brain/c6653bea-d8c3-43f6-946d-085d069d41d7/.system_generated/tasks/task-1133.log"
+}
+
+# Conversation Logs
+
+Reference the following log files for the full, untruncated conversation:
+
+- C:\Users\iamgo\.gemini\antigravity-ide\brain\c6653bea-d8c3-43f6-946d-085d069d41d7\.system_generated\logs\transcript.jsonl
+
+**IMPORTANT: this summary is just for your reference. You may respond to my previous and future messages, but DO NOT ACKNOWLEDGE THIS CHECKPOINT MESSAGE. JUST READ IT BUT DO NOT MENTION IT, RESPOND TO IT, OR TAKE ACTION BECAUSE OF IT.**
+================================================================================
+Line 2199 (step 1522):
+Created At: 2026-07-19T16:32:19Z
+Completed At: 2026-07-19T16:32:20Z
+The following changes were made by the replace_file_content tool to: s:\RESUME_BUILDER_PROJECT\Resume-Tailor\gemini_service.py. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -206,17 +206,12 @@
+     }
+ 
+ 
+-def tailor_resume(master_resume: str, jd_text: str, selected_keywords: list[str] | None = None) -> tuple[dict[str, Any], list[str], dict[str, Any]]:
+-    """
+-    Send the master resume text and JD to Gemini; return the parsed tailored-resume dict,
+-    a list of warnings, and the scoring dashboard dict.
+-
+-    Raises:
+-        ValueError: If the API key is missing, Gemini returns non-parseable JSON,
+-                    or a structurally invalid response.
+-    """
+-    from google import genai  # type: ignore   # import at call-time to avoid crash on startup
+-    from google.genai import types as genai_types  # type: ignore
++def generate_tailored_resume(master_resume: str, jd_text: str, selected_keywords: list[str] | None = None) -> dict[str, Any]:
++    """
++    Call Gemini once or twice to tailor the resume.
++    """
++    from google import genai
++    from google.genai import types as genai_types
+ 
+     api_key = os.environ.get("GEMINI_API_KEY", "")
+     if not api_key:
+@@ -229,45 +229,9 @@
+     keywords_instruction = ""
+     if selected_keywords:
+         kw_list = ", ".join(selected_keywords)
+-        keywords_instruction = f"""
+-
+-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-USER-SELECTED KEYWORDS TO INTEGRATE: {kw_list}
+-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-
+-IMPORTANT — How to integrate these keywords:
+-
+-These are the EXACT keywords the user wants reflected in the final resume. Follow these rules STRICTLY:
+-
+-1. PROFESSIONAL SUMMARY (highest priority):
+-   - The summary MUST open by establishing the candidate's identity using 1–2 of the most important keywords from the list above.
+-   - Weave at least 4–6 of the selected keywords naturally into the summary paragraph.
+-   - The summary should read like a confident, senior-authored career statement — not a keyword list. Do NOT use buzzword openers (e.g. "Forward-thinking", "Dynamic").
+-   - Example tone: "Full-stack software engineer with a strong foundation in Python and Flask, experienced in building REST APIs and managing the complete SDLC from design to production deployment."
+-
+-2. TECHNICAL SKILLS SECTION:
+-   - ALL selected keywords that are technologies, tools, languages, or frameworks MUST appear in the skills section.
+-   - Keywords already present in the master resume keep their original category.
+-   - Keywords from the JD that are NOT in the master resume but ARE in the selected list should be added to the most appropriate existing skill category ONLY IF the candidate's bullets or project descriptions genuinely demonstrate that skill (even if named differently). Do NOT add a skill that has zero evidence in the resume.
+-   - NEVER copy category headers or activity phrases (e.g., "Software Development," "Testing") into the skills items list.
+-   - Reorder skill categories so the most JD-relevant ones appear first.
+-
+-3. PROJECT BULLETS:
+-   - Rewrite project bullets to use the JD's vocabulary and the selected keywords wherever the underlying fact honestly supports it.
+-   - Each major project should contain at least 1–2 of the selected keywords in its bullets, woven into the context of what was actually built (e.g., "Designed REST APIs in Flask to expose...", "Managed full SDLC from requirements gathering to Docker-based deployment...").
+-   - Do NOT repeat the same keyword in every bullet — spread them across bullets for natural flow.
+-   - Ensure bullets lead with strong action verbs in the past tense, and never end with a vague or generic filler phrase.
+-
+-4. INTERNSHIP BULLETS:
+-   - Apply the same keyword-weaving approach but with a lighter touch since internships are supporting evidence.
+-   - If a keyword clearly maps to something done in an internship (e.g. "HTML/CSS" for a frontend intern), include it in that bullet naturally.
+-
+-5. NATURALNESS CHECK (mandatory):
+-   - After composing every section, mentally re-read it. If any keyword placement sounds forced, robotic, or out of context, REWRITE that sentence until the keyword reads as if the candidate would have written it themselves.
+-   - A reader should never be able to tell that keywords were selectively inserted — the resume must read as one coherent, professionally authored document.
+-"""
+-
+-    prompt = f"""Below is the candidate's complete master resume content (raw text extracted from their PDF/DOCX):
++        keywords_instruction = f"\n\nUSER-SELECTED KEYWORDS TO INTEGRATE: {kw_list}\nIntegrate these keywords naturally where appropriate."
++
++    prompt = f"""Below is the candidate's complete master resume content (raw text):
+ 
+ {master_resume}
+ 
+@@ -278,27 +278,26 @@
+ 
+ ---
+ 
+-Using ONLY the facts and experiences present in the master resume above, produce a tailored resume and dashboard JSON \
+-matching the schema in your system instructions. Follow the schema exactly. \
+-Extract all available contact details (name, email, phone, location, linkedin, github, portfolio) from the master resume. \
+-Write every section — especially the summary and project bullets — with the quality and precision of \
+-a professional resume writer: clear, concise, achievement-oriented sentences that flow naturally. \
+-Sort bullets within each project or experience by relevance to the JD, rotate starting action verbs naturally, \
+-and use active voice. Do not add any text outside the JSON object."""
+-
+-    # 1. Parse/extract master entities first
+-    master_entities = extract_master_entities(master_resume)
+-
+-    finalized = None
+-    quality_warnings = []
+-    dashboard_data = None
++Using ONLY the facts and experiences present in the master resume above, produce a tailored resume, entry counts, and dashboard JSON matching the schema in your system instructions. Follow the schema exactly. Write professional, high-impact, active-voice descriptions. Do not add any markdown formatting or prose outside the JSON object."""
++
+     feedback_instruction = ""
+-
+-    # Self-correction loop: Run up to 3 attempts
+-    for attempt in range(3):
++    last_errors = []
++    parsed_data = None
++
++    for attempt in range(4):
+         current_prompt = prompt
+         if feedback_instruction:
+-            current_prompt += f"\n\n⚠️ PREVIOUS ATTEMPT REJECTED due to missing information or formatting issues. Please fix these:\n{feedback_instruction}"
++            current_prompt += (
++                f"\n\n⚠️ PREVIOUS ATTEMPT REJECTED due to validation issues. Please fix these:\n{feedback_instruction}\n"
++                f"\nCRITICAL REMINDERS:\n"
++                f"1. You MUST NOT repeat any of the rejected buzzwords, clichés, or format errors in your response.\n"
++                f"2. You MUST preserve all entries (projects, internships, education, certifications) from the master resume. Do not truncate or omit any entries.\n"
++                f"3. Return the complete corrected JSON."
++            )
++
++        # Escalate temperature progressively: 0.2 -> 0.7 -> 0.85 -> 1.0
++        temperatures = [0.2, 0.7, 0.85, 1.0]
++        temp = temperatures[attempt]
+ 
+         try:
+             response = generate_content_with_fallback(
+@@ -305,38 +305,115 @@
+                 prompt=current_prompt,
+                 system_instruction=SYSTEM_INSTRUCTION,
+-                temperature=0.4
+-            )
+-        except Exception as exc:
+-            logger.error("All models failed during tailoring: %s", exc)
+-            raise
+-
+-        raw_text: str = response.text
+-        logger.info("Received Gemini response (%d chars) on attempt %d.", len(raw_text), attempt + 1)
+-
+-        try:
+-            tailored_data, dashboard_data = _parse_json_response(raw_text)
+-            cleaned = clean_tailored_resume(tailored_data, master_resume)
+-            finalized, quality_warnings = validate_and_correct_resume(cleaned, master_resume, jd_text, master_entities)
+-            
+-            # Check completeness against master entities
+-            completeness_errors = check_completeness(master_entities, finalized)
+-            if not completeness_errors:
+-                logger.info("Tailored resume passed completeness validation on attempt %d.", attempt + 1)
+-                break
+-            else:
+-                logger.warning("Tailored resume failed completeness validation (attempt %d/3): %s", attempt + 1, completeness_errors)
+-                feedback_instruction = "\n".join(f"- {err}" for err in completeness_errors)
+-        except Exception as exc:
+-            logger.exception("Error parsing/validating tailored resume on attempt %d: %s", attempt + 1, exc)
+-            feedback_instruction = f"Failed to parse or validate JSON response. Ensure the output is valid JSON according to the schema."
+-
+-    if not finalized:
+-        raise ValueError("Failed to generate a complete tailored resume after 3 attempts.")
+-
+-    if not dashboard_data:
+-        dashboard_data = _generate_fallback_dashboard(finalized, jd_text)
+-
+-    return finalized, quality_warnings, dashboard_data
++                temperature=temp
++            )
++            raw_text = response.text
++            logger.info("Received Gemini response (%d chars) on attempt %d with temp %.2f.", len(raw_text), attempt + 1, temp)
++            
++            # Parse response JSON
++            cleaned = _strip_markdown_fences(raw_text)
++            parsed_data = json.loads(cleaned)
++
++            # Inject fallback dashboard if missing/malformed
++            if not isinstance(parsed_data.get("dashboard"), dict):
++                parsed_data["dashboard"] = {
++                    "ats_score": 80,
++                    "ats_explanation": "Resume format and layout optimized for ATS readability.",
++                    "readability_score": 80,
++                    "readability_explanation": "Concise bullet points and active phrasing improve readability.",
++                    "match_score": 75,
++                    "match_explanation": "Experience tailored to meet key requirements from the JD.",
++                    "keyword_coverage": 70,
++                    "missing_skills": [],
++                    "weaknesses": [],
++                    "strengths": ["Clear alignment with target role"],
++                    "improvements": []
++                }
++                parsed_data["dashboard_fallback_used"] = True
++
++            # Normalize section_order to match template expectations
++            if "tailored_resume" in parsed_data and "section_order" in parsed_data["tailored_resume"]:
++                raw_order = parsed_data["tailored_resume"]["section_order"]
++                normalized_order = []
++                for sec in raw_order:
++                    sec_lower = sec.lower().strip()
++                    if sec_lower in ("skills_selected", "skills", "technical skills"):
++                        normalized_order.append("skills")
++                    elif sec_lower in ("internships_selected", "internships", "experience", "work experience", "professional experience"):
++                        normalized_order.append("internships")
++                    else:
++                        normalized_order.append(sec_lower)
++                parsed_data["tailored_resume"]["section_order"] = normalized_order
++            
++            # Run LLM-based classification to filter non-technical skill/activity phrases before validation
++            filter_non_skills_via_classification(client, parsed_data, selected_keywords)
++            
++            # Validate
++            errors, unverified_items = validate_tailored_resume(parsed_data, master_resume, selected_keywords, return_unverified=True)
++            if not errors:
++                logger.info("Tailored resume passed validation on attempt %d.", attempt + 1)
++                if "tailored_resume" in parsed_data and "skills_selected" in parsed_data["tailored_resume"]:
++                    parsed_data["tailored_resume"]["skills_selected"] = deduplicate_skills_selected(
++                        parsed_data["tailored_resume"]["skills_selected"]
++                    )
++                parsed_data["unverified_skills"] = unverified_items
++                return parsed_data
++            else:
++                logger.warning("Attempt %d validation failed: %s", attempt + 1, errors)
++                last_errors = errors
++                
++                # Check if we should stop retrying early (non-buzzword failure limit of 2 attempts)
++                is_buzzword_only = all("banned buzzword phrase" in err for err in errors)
++                if attempt >= 1 and not is_buzzword_only:
++                    logger.info("Stopping retry loop early (attempt %d): non-buzzword errors present: %s", attempt + 1, errors)
++                    break
++                    
++                # Format feedback instruction for next retry
++                feedback_instruction = "\n".join(f"- {err}" for err in errors)
++                
++                # Append alternative phrasing suggestions specifically for buzzwords
++                buzzword_errors = [err for err in errors if "banned buzzword phrase" in err]
++                if buzzword_errors:
++                    suggestions_list = []
++                    for err in buzzword_errors:
++                        match = re.search(r"banned buzzword phrase '([^']+)'", err)
++                        if match:
++                            phrase = match.group(1)
++                            sug = get_buzzword_suggestions(phrase)
++                            suggestions_list.append(f"For '{phrase}':\n{sug}")
++                    if suggestions_list:
++                         feedback_instruction += "\n\n💡 Alternative Phrasing Suggestions:\n" + "\n\n".join(suggestions_list)
++                         
++        except Exception as exc:
++            logger.exception("Error parsing/validating on attempt %d: %s", attempt + 1, exc)
++            feedback_instruction = f"Failed to parse or validate JSON response. Ensure the output is valid JSON according to the schema: {exc}"
++            last_errors = [str(exc)]
++            if attempt >= 1:
++                # Syntax errors/exceptions also don't get the extra buzzword budget
++                break
++
++    # If the summary STILL contains buzzwords and all errors are exclusively buzzword errors, apply python fallback
++    if last_errors and parsed_data and isinstance(parsed_data.get("tailored_resume"), dict):
++        is_buzzword_only = all("banned buzzword phrase" in err for err in last_errors)
++        if is_buzzword_only:
++            original_summary = parsed_data["tailored_resume"].get("summary", "")
++            cleaned_summary = deterministic_buzzword_cleanup(original_summary)
++            logger.warning("LAST-RESORT FALLBACK: LLM failed to self-correct buzzwords after 4 attempts. Summary cleaned: '%s' -> '%s'", original_summary, cleaned_summary)
++            parsed_data["tailored_resume"]["summary"] = cleaned_summary
++            
++            # Re-run validation one last time
++            errors, unverified_items = validate_tailored_resume(parsed_data, master_resume, selected_keywords, return_unverified=True)
++            if not errors:
++                logger.info("Tailored resume passed validation after applying last-resort cleanup fallback.")
++                if "tailored_resume" in parsed_data and "skills_selected" in parsed_data["tailored_resume"]:
++                    parsed_data["tailored_resume"]["skills_selected"] = deduplicate_skills_selected(
++                        parsed_data["tailored_resume"]["skills_selected"]
++                    )
++                parsed_data["unverified_skills"] = unverified_items
++                return parsed_data
++            else:
++                last_errors = errors
++
++    raise ValueError(f"Resume validation failed after attempts: {', '.join(last_errors)}")
+ 
+ 
+ # ---------------------------------------------------------------------------
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+================================================================================

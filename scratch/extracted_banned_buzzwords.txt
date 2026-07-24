@@ -1,0 +1,20 @@
+Line 2251 (step 1575):
+Created At: 2026-07-19T16:34:13Z
+Completed At: 2026-07-19T16:34:17Z
+The following changes were made by the replace_file_content tool to: s:\RESUME_BUILDER_PROJECT\Resume-Tailor\gemini_service.py. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -868,8 +868,8 @@
+     errors = []
+     summary_lower = summary.strip().lower()
+     for buzz in BANNED_BUZZWORDS:
+-        if summary_lower.startswith(buzz) or summary_lower.startswith("a " + buzz) or summary_lower.startswith("an " + buzz):
+-            errors.append(f"Summary starts with banned buzzword: '{buzz}'")
++        if buzz in summary_lower:
++            errors.append(f"Summary text contains the banned buzzword phrase '{buzz}'.")
+     return errors
+ 
+ 
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+================================================================================

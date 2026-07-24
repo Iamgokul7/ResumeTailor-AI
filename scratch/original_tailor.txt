@@ -1,0 +1,153 @@
+209: def tailor_resume(master_resume: str, jd_text: str, selected_keywords: list[str] | None = None) -> tuple[dict[str, Any], list[str], dict[str, Any]]:
+210:     """
+211:     Send the master resume text and JD to Gemini; return the parsed tailored-resume dict,
+212:     a list of warnings, and the scoring dashboard dict.
+213: 
+214:     Raises:
+215:         ValueError: If the API key is missing, Gemini returns non-parseable JSON,
+216:                     or a structurally invalid response.
+217:     """
+218:     from google import genai  # type: ignore   # import at call-time to avoid crash on startup
+219:     from google.genai import types as genai_types  # type: ignore
+220: 
+221:     api_key = os.environ.get("GEMINI_API_KEY", "")
+222:     if not api_key:
+223:         raise ValueError(
+224:             "GEMINI_API_KEY is not set. "
+225:             "Add it to your .env file and restart the server."
+226:         )
+227: 
+228:     client = genai.Client(api_key=api_key)
+229: 
+230:     keywords_instruction = ""
+231:     if selected_keywords:
+232:         kw_list = ", ".join(selected_keywords)
+233:         keywords_instruction = f"""
+234: 
+235: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+236: USER-SELECTED KEYWORDS TO INTEGRATE: {kw_list}
+237: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+238: 
+239: IMPORTANT — How to integrate these keywords:
+240: 
+241: These are the EXACT keywords the user wants reflected in the final resume. Follow these rules STRICTLY:
+242: 
+243: 1. PROFESSIONAL SUMMARY (highest priority):
+244:    - The summary MUST open by establishing the candidate's identity using 1–2 of the most important keywords from the list above.
+245:    - Weave at least 4–6 of the selected keywords naturally into the summary paragraph.
+246:    - The summary should read like a confident, senior-authored career statement — not a keyword list. Do NOT use buzzword openers (e.g. "Forward-thinking", "Dynamic").
+247:    - Example tone: "Full-stack software engineer with a strong foundation in Python and Flask, experienced in building REST APIs and managing the complete SDLC from design to production deployment."
+248: 
+249: 2. TECHNICAL SKILLS SECTION:
+250:    - ALL selected keywords that are technologies, tools, languages, or frameworks MUST appear in the skills section.
+251:    - Keywords already present in the master resume keep their original category.
+252:    - Keywords from the JD that are NOT in the master resume but ARE in the selected list should be added to the most appropriate existing skill category ONLY IF the candidate's bullets or project descriptions genuinely demonstrate that skill (even if named differently). Do NOT add a skill that has zero evidence in the resume.
+253:    - NEVER copy category headers or activity phrases (e.g., "Software Development," "Testing") into the skills items list.
+254:    - Reorder skill categories so the most JD-relevant ones appear first.
+255: 
+256: 3. PROJECT BULLETS:
+257:    - Rewrite project bullets to use the JD's vocabulary and the selected keywords wherever the underlying fact honestly supports it.
+258:    - Each major project should contain at least 1–2 of the selected keywords in its bullets, woven into the context of what was actually built (e.g., "Designed REST APIs in Flask to expose...", "Managed full SDLC from requirements gathering to Docker-based deployment...").
+259:    - Do NOT repeat the same keyword in every bullet — spread them across bullets for natural flow.
+260:    - Ensure bullets lead with strong action verbs in the past tense, and never end with a vague or generic filler phrase.
+261: 
+262: 4. INTERNSHIP BULLETS:
+263:    - Apply the same keyword-weaving approach but with a lighter touch since internships are supporting evidence.
+264:    - If a keyword clearly maps to something done in an internship (e.g. "HTML/CSS" for a frontend intern), include it in that bullet naturally.
+265: 
+266: 5. NATURALNESS CHECK (mandatory):
+267:    - After composing every section, mentally re-read it. If any keyword placement sounds forced, robotic, or out of context, REWRITE that sentence until the keyword reads as if the candidate would have written it themselves.
+268:    - A reader should never be able to tell that keywords were selectively inserted — the resume must read as one coherent, professionally authored document.
+269: """
+270: 
+271:     prompt = f"""Below is the candidate's complete master resume content (raw text extracted from their PDF/DOCX):
+272: 
+273: {master_resume}
+274: 
+275: ---
+276: 
+277: Job Description:
+278: {jd_text}
+279: {keywords_instruction}
+280: 
+281: ---
+282: 
+283: Using ONLY the facts and experiences present in the master resume above, produce a tailored resume and dashboard JSON \
+284: matching the schema in your system instructions. Follow the schema exactly. \
+285: Extract all available contact details (name, email, phone, location, linkedin, github, portfolio) from the master resume. \
+286: Write every section — especially the summary and project bullets — with the quality and precision of \
+287: a professional resume writer: clear, concise, achievement-oriented sentences that flow naturally. \
+288: Sort bullets within each project or experience by relevance to the JD, rotate starting action verbs naturally, \
+289: and use active voice. Do not add any text outside the JSON object."""
+290: 
+291:     # 1. Parse/extract master entities first
+292:     master_entities = extract_master_entities(master_resume)
+293: 
+294:     finalized = None
+295:     quality_warnings = []
+296:     dashboard_data = None
+297:     feedback_instruction = ""
+298: 
+299:     # Self-correction loop: Run up to 3 attempts
+300:     for attempt in range(3):
+301:         current_prompt = prompt
+302:         if feedback_instruction:
+303:             current_prompt += f"\n\n⚠️ PREVIOUS ATTEMPT REJECTED due to missing information or formatting issues. Please fix these:\n{feedback_instruction}"
+304: 
+305:         try:
+306:             response = generate_content_with_fallback(
+307:                 client=client,
+308:                 prompt=current_prompt,
+309:                 system_instruction=SYSTEM_INSTRUCTION,
+310:                 temperature=0.4
+311:             )
+312:         except Exception as exc:
+313:             logger.error("All models failed during tailoring: %s", exc)
+314:             raise
+315: 
+316:         raw_text: str = response.text
+317:         logger.info("Received Gemini response (%d chars) on attempt %d.", len(raw_text), attempt + 1)
+318: 
+319:         try:
+320:             tailored_data, dashboard_data = _parse_json_response(raw_text)
+321:             cleaned = clean_tailored_resume(tailored_data, master_resume)
+322:             finalized, quality_warnings = validate_and_correct_resume(cleaned, master_resume, jd_text, master_entities)
+323:             
+324:             # Check completeness against master entities
+325:             completeness_errors = check_completeness(master_entities, finalized)
+326:             if not completeness_errors:
+327:                 logger.info("Tailored resume passed completeness validation on attempt %d.", attempt + 1)
+328:                 break
+329:             else:
+330:                 logger.warning("Tailored resume failed completeness validation (attempt %d/3): %s", attempt + 1, completeness_errors)
+331:                 feedback_instruction = "\n".join(f"- {err}" for err in completeness_errors)
+332:         except Exception as exc:
+333:             logger.exception("Error parsing/validating tailored resume on attempt %d: %s", attempt + 1, exc)
+334:             feedback_instruction = f"Failed to parse or validate JSON response. Ensure the output is valid JSON according to the schema."
+335: 
+336:     if not finalized:
+337:         raise ValueError("Failed to generate a complete tailored resume after 3 attempts.")
+338: 
+339:     if not dashboard_data:
+340:         dashboard_data = _generate_fallback_dashboard(finalized, jd_text)
+341: 
+342:     return finalized, quality_warnings, dashboard_data
+343: 
+344: 
+345: # ---------------------------------------------------------------------------
+346: # Internal helpers
+347: # ---------------------------------------------------------------------------
+348: 
+349: 
+350: def generate_content_with_fallback(
+351:     client: Any,
+352:     prompt: str,
+353:     system_instruction: str,
+354:     temperature: float,
+355: ) -> Any:
+356:     """
+357:     Tries to generate content using GEMINI_MODELS list sequentially.
+358:     On 429/503, performs exponential backoff retries.
+359:     On 404 (model not found), falls back immediately.
+360:     On any other error, falls back to the next model.
+361:     """

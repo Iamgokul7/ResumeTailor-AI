@@ -1,0 +1,88 @@
+=== LINE 1489 | TYPE CODE_ACTION ===
+CONTENT:
+Created At: 2026-07-19T16:17:11Z
+Completed At: 2026-07-19T16:17:13Z
+The following changes were made by the replace_file_content tool to: s:\RESUME_BUILDER_PROJECT\Resume-Tailor\gemini_service.py. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -909,7 +909,10 @@
+     Batches skill items and calls Gemini to classify each as TECHNICAL_SKILL or NOT_A_SKILL.
+     Returns a mapping of {original_item: classification}.
+     """
++    print(f"[UNCONDITIONAL_LOG] classify_skills_with_llm: Sent for classification: {skills_list}")
++    logger.info("classify_skills_with_llm: Sent for classification: %s", skills_list)
+     if not skills_list:
++        print("[UNCONDITIONAL_LOG] classify_skills_with_llm: empty skills list. Returning empty mapping.")
+         return {}
+         
+     system_instruction = (
+@@ -955,8 +955,11 @@
+             for obj in data:
+                 if isinstance(obj, dict) and "item" in obj and "classification" in obj:
+                     mapping[obj["item"].strip()] = obj["classification"].strip()
++        print(f"[UNCONDITIONAL_LOG] classify_skills_with_llm: API Call SUCCEEDED. Mapping: {mapping}")
++        logger.info("classify_skills_with_llm: API Call SUCCEEDED. Mapping: %s", mapping)
+         return mapping
+     except Exception as exc:
++        print(f"[UNCONDITIONAL_LOG] classify_skills_with_llm: API Call FAILED. Exception: {exc}")
+         logger.exception("Error in classify_skills_with_llm: %s", exc)
+         return {}
+ 
+@@ -963,9 +963,7 @@
+ def filter_non_skills_via_classification(client: Any, tailored_data: dict[str, Any], selected_keywords: list[str] | None = None):
+     resume = tailored_data.get("tailored_resume", {})
+     skills_selected = resume.get("skills_selected", [])
+-    if not skills_selected:
+-        return
+-        
++    
+     all_skills = []
+     for group in skills_selected:
+         if isinstance(group, dict):
+@@ -972,7 +972,15 @@
+                 if isinstance(item, str) and item.strip():
+                     all_skills.append(item.strip())
+-                    
++
++    print(f"[UNCONDITIONAL_LOG] filter_non_skills_via_classification: CALLED with {len(all_skills)} items")
++    logger.info("filter_non_skills_via_classification: CALLED with %d items", len(all_skills))
++    
++    if not skills_selected:
++        print("[UNCONDITIONAL_LOG] filter_non_skills_via_classification: skills_selected is empty. No filtering needed.")
++        return
++        
+     if not all_skills:
++        print("[UNCONDITIONAL_LOG] filter_non_skills_via_classification: all_skills is empty. No filtering needed.")
+         return
+         
+     classifications = classify_skills_with_llm(client, list(set(all_skills)))
+@@ -979,3 +979,8 @@
++    if not classifications:
++        print("[UNCONDITIONAL_LOG] filter_non_skills_via_classification: Fail-safe fallback triggered because classifications mapping is empty (API failure). No skills stripped.")
++        logger.warning("filter_non_skills_via_classification: Fail-safe fallback triggered because classifications mapping is empty (API failure). No skills stripped.")
++        return
++
+     filtered_groups = []
+     for group in skills_selected:
+         if not isinstance(group, dict):
+@@ -1002,7 +1002,9 @@
+                             break
+                 if is_user_selected:
+                     new_items.append(item)
+-                else:
++                    print(f"[UNCONDITIONAL_LOG] filter_non_skills_via_classification: Preserved user-selected keyword: '{item}'")
++                else:
++                    print(f"[UNCONDITIONAL_LOG] filter_non_skills_via_classification: Stripped non-technical skill item: '{item}'")
+                     logger.info("Stripped non-technical skill item via LLM classification: '%s'", item)
+             else:
+                 new_items.append(item)
+@@ -1012,6 +1012,7 @@
+     resume["skills_selected"] = filtered_groups
+ 
+ 
++
+ def deduplicate_skills_selected(skills_selected: list[Any]) -> list[Any]:
+     if not skills_selected:
+         return skills_selected
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
