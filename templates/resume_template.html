@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
-{% set styles = styles | default({}) %}
-{% set section_titles = section_titles | default({}) %}
 <head>
   <meta charset="UTF-8" />
   <title>{{ contact.name }} – Resume</title>
   <style>
+    /* ----------------------------------------------------------------
+       ATS-safe PDF stylesheet — xhtml2pdf primary, WeasyPrint fallback
+       xhtml2pdf-specific properties:
+         -pdf-keep-with-next: true   → heading stays glued to next block
+    ---------------------------------------------------------------- */
+
     @page {
       size: letter portrait;
-      margin: 0.5in 0.5in 0.5in 0.5in;
+      margin: 0.55in 0.65in 0.55in 0.65in;
     }
 
     * {
@@ -18,510 +22,327 @@
     }
 
     body {
-      font-family: 'Times New Roman', Times, serif;
+      font-family: Helvetica, Arial, sans-serif;
       font-size: 10pt;
-      line-height: 1.12;
-      color: #111111;
+      line-height: 1.25;
+      color: #1a1a1a;
     }
 
-    /* Candidate Name */
-    .candidate-name {
-      font-size: 22pt;
+    /* ── Header ─────────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 10pt;
+      padding-bottom: 6pt;
+    }
+
+    .name {
+      font-size: 18pt;
       font-weight: bold;
-      text-transform: uppercase;
-      text-align: center;
+      letter-spacing: 0.5pt;
       margin-bottom: 3pt;
+      text-transform: uppercase;
     }
 
-    /* Contact Info */
-    .contact-info {
-      font-size: 9.5pt;
-      text-align: center;
-      margin-bottom: 8pt;
-      line-height: 1.2;
+    .contact-line {
+      font-size: 9pt;
+      color: #333;
     }
 
-    /* Link Styling */
+    /* ── Global link rule: professional blue, underlined, always clickable ─ */
     a {
-      color: #0000EE;
+      color: #0563C1;        /* standard PDF hyperlink blue */
       text-decoration: underline;
     }
 
     a:visited {
-      color: #0000EE;
+      color: #0563C1;
     }
 
-    /* Section Headings */
+    /* ── Section ─────────────────────────────────────────────── */
+    .section {
+      margin-top: 14pt;
+    }
+
+    /*
+      Section title — uses xhtml2pdf's -pdf-keep-with-next to force
+      the renderer to place this element on the same page as the next
+      sibling. This is the only reliable way to prevent orphaned headings
+      when using xhtml2pdf.
+    */
     .section-title {
-      font-size: 12pt;
+      font-size: 9.5pt;
       font-weight: bold;
       text-transform: uppercase;
-      text-align: left;
-      color: #1F3A5F;
-      border-bottom: 0.5pt solid #1F3A5F;
-      padding-bottom: 1px;
-      margin-top: 10pt;
-      margin-bottom: 4pt;
-      -pdf-keep-with-next: true;
-      page-break-after: avoid;
-      break-after: avoid;
-    }
-
-    /* Summary */
-    .summary-text {
-      font-size: 10pt;
-      line-height: 1.12;
-      text-align: justify;
-    }
-
-    /* Skills */
-    .skills-row {
-      font-size: 10pt;
-      margin-bottom: 2pt;
-      line-height: 1.12;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-
-    /* Entries */
-    .entry {
+      letter-spacing: 0.8pt;
+      border-bottom: 0.5pt solid #1a1a1a;
+      padding-bottom: 1pt;
       margin-bottom: 5pt;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-
-    .entry-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 1pt;
+      /* xhtml2pdf: keep with following block */
       -pdf-keep-with-next: true;
+      /* WeasyPrint / CSS3 */
       page-break-after: avoid;
       break-after: avoid;
     }
 
-    .entry-name {
-      font-weight: bold;
-      font-size: 10pt;
-    }
-
-    .entry-dates {
+    /* ── Summary ─────────────────────────────────────────────── */
+    .summary-text {
       font-size: 9.5pt;
-      color: #111111;
-      font-weight: normal;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .project-sub-line {
-      font-size: 9.5pt;
-      margin-bottom: 2pt;
-      -pdf-keep-with-next: true;
-      page-break-after: avoid;
-      break-after: avoid;
-    }
-
-    .entry-sub-line {
-      font-size: 10pt;
-      margin-bottom: 2pt;
-    }
-
-    ul.bullets {
-      margin-left: 12pt;
-      margin-top: 1pt;
-      list-style-type: disc;
-      padding-left: 0;
-    }
-
-    ul.bullets li {
-      font-size: 10pt;
-      margin-bottom: 1pt;
-      line-height: 1.12;
+      line-height: 1.25;
       text-align: justify;
     }
 
-    /* Cert entry */
-    .cert-entry {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: 10.5pt;
-      margin-bottom: 3.5pt;
+    /* ── Skills ──────────────────────────────────────────────── */
+    .skills-row {
+      font-size: 9.5pt;
+      margin-bottom: 2.5pt;
+      line-height: 1.25;
       page-break-inside: avoid;
       break-inside: avoid;
     }
 
-    /* Education extra */
-    .edu-coursework {
-      font-size: 10pt;
-      color: #111111;
-      margin-top: 1pt;
-    }
-
-    /* Publication entry */
-    .pub-entry {
+    /* ── Entry (project / internship / education) ─────────────── */
+    .entry {
       margin-bottom: 7pt;
       page-break-inside: avoid;
       break-inside: avoid;
     }
 
-    .pub-title {
-      font-weight: bold;
-      font-size: 10.5pt;
+    .entry-header {
+      margin-bottom: 2pt;
+      /* xhtml2pdf: keep heading row with the next sibling (tech/role line) */
+      -pdf-keep-with-next: true;
+      page-break-after: avoid;
+      break-after: avoid;
     }
 
-    .pub-publisher {
-      font-size: 10pt;
-      color: #111111;
-    }
-
-    .pub-link {
+    .entry-dates {
       font-size: 9.5pt;
-      color: #555555;
+      color: #444;
+      font-weight: normal;
+    }
+
+    .entry-name {
+      font-size: 10pt;
+      font-weight: bold;
+    }
+
+    .entry-sub-line {
+      font-size: 9.5pt;
+      color: #444;
+      margin-bottom: 2.5pt;
+    }
+
+    .project-sub-line {
+      font-size: 9pt;
+      font-style: italic;
+      color: #555;
+      margin-bottom: 2.5pt;
+      -pdf-keep-with-next: true;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    /* project links inherit the global a { color } rule — no override needed */
+
+    /* ── Bullets ─────────────────────────────────────────────── */
+    ul.bullets {
+      margin-left: 12pt;
+      margin-top: 2pt;
+      list-style-type: disc;
+      padding-left: 0;
+    }
+
+    ul.bullets li {
+      font-size: 9.5pt;
+      margin-bottom: 1.5pt;
+      line-height: 1.25;
+      text-align: justify;
+    }
+
+    /* ── Cert entry ──────────────────────────────────────────── */
+    .cert-entry {
+      font-size: 9.5pt;
+      margin-bottom: 2.5pt;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    /* ── Education extra ──────────────────────────────────────── */
+    .edu-coursework {
+      font-size: 9pt;
+      color: #444;
+      margin-top: 1pt;
     }
 
   </style>
 </head>
 <body>
 
-<!-- HEADER Name + Contact -->
-  <div class="candidate-name">{{ contact.name }}</div>
-  <div class="contact-info">
-    {%- set vars = {'has_prev': false} -%}
-    {%- if contact.location -%}
+  <!-- ================================================================
+       HEADER – Name + Contact
+  ================================================================ -->
+  <div class="header">
+    <div class="name">{{ contact.name }}</div>
+    <div class="contact-line">
       {{ contact.location }}
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.email -%}
-      {%- if vars.has_prev %} | {% endif -%}
-      <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.phone -%}
-      {%- if vars.has_prev %} | {% endif -%}
-      <a href="tel:{{ contact.phone | replace(' ', '') | replace('-', '') | replace('(', '') | replace(')', '') }}">{{ contact.phone }}</a>
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.github -%}
-      {%- if vars.has_prev %} | {% endif -%}
-      <a href="{{ contact.github | absolute_url }}">GitHub: {{ contact.github | display_url }}</a>
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.portfolio -%}
-      {%- if vars.has_prev %} | {% endif -%}
-      <a href="{{ contact.portfolio | absolute_url }}">Portfolio: {{ contact.portfolio | display_url }}</a>
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.linkedin -%}
-      {%- if vars.has_prev %} | {% endif -%}
-      <a href="{{ contact.linkedin | absolute_url }}">LinkedIn: {{ contact.linkedin | display_url }}</a>
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.website -%}
-      {%- if vars.has_prev %} | {% endif -%}
-      <a href="{{ contact.website | absolute_url }}">Website: {{ contact.website | display_url }}</a>
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.live_demo -%}
-      {%- if vars.has_prev %} | {% endif -%}
-      <a href="{{ contact.live_demo | absolute_url }}">Live Demo: {{ contact.live_demo | display_url }}</a>
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.application_url -%}
-      {%- if vars.has_prev %} | {% endif -%}
-      <a href="{{ contact.application_url | absolute_url }}">Application URL: {{ contact.application_url | display_url }}</a>
-      {%- set _ = vars.update({'has_prev': true}) -%}
-    {%- endif -%}
-    {%- if contact.additional_links -%}
-      {%- for link in contact.additional_links -%}
-        {%- if link.url -%}
-          {%- if vars.has_prev %} | {% endif -%}
-          <a href="{{ link.url | absolute_url }}">{{ link.label | default('Link') }}: {{ link.url | display_url }}</a>
-          {%- set _ = vars.update({'has_prev': true}) -%}
-        {%- endif -%}
-      {%- endfor -%}
-    {%- endif -%}
+      {% if contact.email %} | <a href="mailto:{{ contact.email }}">{{ contact.email | display_url }}</a>{% endif %}
+      {% if contact.phone %} | <a href="tel:{{ contact.phone | replace(' ', '') }}">{{ contact.phone }}</a>{% endif %}
+      {% if contact.github %} | <a href="{{ contact.github | absolute_url }}">GitHub: {{ contact.github | display_url }}</a>{% endif %}
+      {% if contact.portfolio %} | <a href="{{ contact.portfolio | absolute_url }}">Portfolio: {{ contact.portfolio | display_url }}</a>{% endif %}
+      {% if contact.linkedin %} | <a href="{{ contact.linkedin | absolute_url }}">LinkedIn: {{ contact.linkedin | display_url }}</a>{% endif %}
+    </div>
   </div>
 
-  <!-- Dynamic Section Rendering based on section_order -->
-  {% set final_order = section_order | default(['summary', 'skills', 'projects', 'internships', 'education', 'certifications', 'publications', 'optional_sections']) %}
-  {% for sec in final_order %}
+  <!-- ================================================================
+       PROFESSIONAL SUMMARY
+  ================================================================ -->
+  {% if summary %}
+  <div class="section" style="margin-top: 10pt;">
+    <div class="section-title">Professional Summary</div>
+    <div class="summary-text">{{ summary }}</div>
+  </div>
+  {% endif %}
 
-    <!-- Professional Summary -->
-    {% if sec == 'summary' and summary %}
-    <div class="section">
-      <div class="section-title">{{ section_titles.summary | default('Professional Summary') }}</div>
-      <div class="summary-text">{{ summary }}</div>
+  <!-- ================================================================
+       TECHNICAL SKILLS
+  ================================================================ -->
+  {% if skills_selected %}
+  <div class="section">
+    <div class="section-title">Technical Skills</div>
+    {% for sg in skills_selected %}
+    <div class="skills-row">
+      <b>{{ sg['category'] }}:</b> {{ sg['items'] | join(", ") }}
     </div>
-    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
 
-    <!-- Technical Skills -->
-    {% if sec == 'skills' and skills_selected %}
-    <div class="section">
-      <div class="section-title">{{ section_titles.skills | default('Technical Skills') }}</div>
-      {% for sg in skills_selected %}
-      <div class="skills-row">
-        <strong>{{ sg['category'] }}:</strong> {{ sg['items'] | join(", ") }}
+  <!-- ================================================================
+       FLAGSHIP PROJECTS
+  ================================================================ -->
+  {% if flagship_projects_selected %}
+  <div class="section">
+    <div class="section-title">Flagship Projects</div>
+    {% for proj in flagship_projects_selected %}
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-name">{{ proj.name }}</span>
+        <span class="entry-dates"> ({{ proj.dates }})</span>
       </div>
-      {% endfor %}
+      <div class="project-sub-line">
+        {{ proj.tech_stack }}
+        {% if proj.github_link %}
+        | <a href="{{ proj.github_link | absolute_url }}">GitHub: {{ proj.github_link | display_url }}</a>
+        {% endif %}
+      </div>
+      {% if proj.bullets %}
+      <ul class="bullets">
+        {% for bullet in proj.bullets %}<li>{{ bullet }}</li>{% endfor %}
+      </ul>
+      {% endif %}
     </div>
-    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
 
-    <!-- Dynamic Projects -->
-    {%- set matched_proj_sec = [] -%}
-    {%- if sec | lower == 'projects' -%}
-      {%- for ps in project_sections -%}
-        {%- set _ = matched_proj_sec.append(ps) -%}
-      {%- endfor -%}
-    {%- endif -%}
-{%- if matched_proj_sec -%}
-      <div class="section">
-        <div class="section-title">{{ section_titles['projects'] | default('Projects') }}</div>
-        {%- for ps in matched_proj_sec -%}
-        {% for proj in ps.projects %}
-        <div class="entry">
-          <div class="entry-header">
-            <span class="entry-name">{{ proj.name }}</span>
-            <span class="entry-dates">{{ proj.dates }}</span>
-          </div>
-          <div class="project-sub-line">
-            {%- set pvars = {'has_prev': false} -%}
-            {%- if proj.tech_stack -%}
-              {{- proj.tech_stack -}}
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.links and proj.links | length > 0 -%}
-              {%- for link in proj.links -%}
-                {%- if link.url -%}
-                  {%- if pvars.has_prev %} | {% endif -%}
-                  <a href="{{ link.url | absolute_url }}">{{ link.label }}: {{ link.url }}</a>
-                  {%- set _ = pvars.update({'has_prev': true}) -%}
-                {%- endif -%}
-              {%- endfor -%}
-            {%- endif -%}
-            {%- if proj.github_link -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.github_link | absolute_url }}">GitHub: {{ proj.github_link }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.project_url -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.project_url | absolute_url }}">Project URL: {{ proj.project_url }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.live_demo -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.live_demo | absolute_url }}">Live Demo: {{ proj.live_demo }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.website -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.website | absolute_url }}">Website: {{ proj.website }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.portfolio -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.portfolio | absolute_url }}">Portfolio: {{ proj.portfolio }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.documentation -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.documentation | absolute_url }}">Documentation: {{ proj.documentation }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.research_paper -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.research_paper | absolute_url }}">Research Paper: {{ proj.research_paper }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.video -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.video | absolute_url }}">Video: {{ proj.video }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.demo -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.demo | absolute_url }}">Demo: {{ proj.demo }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.presentation -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.presentation | absolute_url }}">Presentation: {{ proj.presentation }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.deployment -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.deployment | absolute_url }}">Deployment: {{ proj.deployment }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.figma -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.figma | absolute_url }}">Figma: {{ proj.figma }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.huggingface -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.huggingface | absolute_url }}">HuggingFace: {{ proj.huggingface }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.colab -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.colab | absolute_url }}">Colab: {{ proj.colab }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.application_url -%}
-              {%- if pvars.has_prev %} | {% endif -%}
-              <a href="{{ proj.application_url | absolute_url }}">Application URL: {{ proj.application_url }}</a>
-              {%- set _ = pvars.update({'has_prev': true}) -%}
-            {%- endif -%}
-            {%- if proj.additional_links -%}
-              {%- for link in proj.additional_links -%}
-                {%- if link.url -%}
-                  {%- if pvars.has_prev %} | {% endif -%}
-                  <a href="{{ link.url | absolute_url }}">{{ link.label | default('Link') }}: {{ link.url }}</a>
-                  {%- set _ = pvars.update({'has_prev': true}) -%}
-                {%- endif -%}
-              {%- endfor -%}
-            {%- endif -%}
-          </div>
-          {% if proj.bullets %}
-          <ul class="bullets">
-            {% for bullet in proj.bullets %}<li>{{ bullet }}</li>{% endfor %}
-          </ul>
+  <!-- ================================================================
+       OTHER PROJECTS
+  ================================================================ -->
+  {% if other_projects_selected %}
+  <div class="section">
+    <div class="section-title">Other Projects</div>
+    {% for proj in other_projects_selected %}
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-name">{{ proj.name }}</span>
+        <span class="entry-dates"> ({{ proj.dates }})</span>
+      </div>
+        <div class="project-sub-line">
+          {{ proj.tech_stack }}
+          {% if proj.github_link %}
+          | <a href="{{ proj.github_link | absolute_url }}">GitHub: {{ proj.github_link | display_url }}</a>
           {% endif %}
         </div>
-        {% endfor %}
-        {%- endfor -%}
-      </div>
-    {%- endif -%}
-           
-    <!-- Work Experience / Internships -->
-    {% if sec == 'internships' and internships_selected %}
-    <div class="section">
-      <div class="section-title">{{ section_titles.internships | default('Experience') }}</div>
-      {% for intern in internships_selected %}
-      <div class="entry">
-        <div class="entry-header">
-          <span class="entry-name">
-            {%- if intern.role -%}{{ intern.role }} &mdash; {% endif -%}{{ intern.company }}
-          </span>
-          <span class="entry-dates">{{ intern.dates }}</span>
-        </div>
-        {% if intern.bullets %}
-        <ul class="bullets">
-          {% for bullet in intern.bullets %}<li>{{ bullet }}</li>{% endfor %}
-        </ul>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Education -->
-    {% if sec == 'education' and education %}
-    <div class="section">
-      <div class="section-title">{{ section_titles.education | default('Education') }}</div>
-      {% for edu in education %}
-      <div class="entry">
-        <div class="entry-header">
-          <span class="entry-name">{{ edu.degree }}</span>
-          <span class="entry-dates">{{ edu.dates }}</span>
-        </div>
-        <div class="entry-sub-line">
-          {{ edu.institution }}
-          {%- if edu.gpa -%}
-            {%- set deg_lower = edu.degree | lower -%}
-            {%- set gpa_str = edu.gpa | string | trim | replace('Score:', '') | replace('score:', '') | replace('CGPA:', '') | replace('cgpa:', '') | trim -%}
-            {%- if 'secondary' in deg_lower or 'ssc' in deg_lower or 'hsc' in deg_lower or 'xii' in deg_lower or '10th' in deg_lower or '12th' in deg_lower or 'matriculation' in deg_lower or 'higher secondary' in deg_lower -%}
-               &nbsp;|&nbsp; Score: {{ gpa_str }}{% if '%' not in gpa_str %}%{% endif %}
-            {%- else -%}
-               &nbsp;|&nbsp; CGPA: {{ gpa_str }}{% if '/' not in gpa_str %}/10.00{% endif %}
-            {%- endif -%}
-          {%- endif -%}
-        </div>
-        {% if edu.relevant_coursework and edu.relevant_coursework.strip().lower() not in ["n/a", "none", "not applicable", ""] %}
-        <div class="edu-coursework">Coursework: {{ edu.relevant_coursework }}</div>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Certifications -->
-    {% if sec == 'certifications' and certifications %}
-    <div class="section">
-      <div class="section-title">{{ section_titles.certifications | default('Certifications') }}</div>
-      <ul class="bullets" style="margin-left: 12pt; list-style-type: disc;">
-        {% for cert in certifications %}
-        <li style="font-size: 10pt; margin-bottom: 2pt; line-height: 1.12;">
-          <strong>{{ cert.name }}</strong> &mdash; {{ cert.issuer }}{% if cert.date %} ({{ cert.date }}){% endif %}
-        </li>
-        {% endfor %}
+      {% if proj.bullets %}
+      <ul class="bullets">
+        {% for bullet in proj.bullets %}<li>{{ bullet }}</li>{% endfor %}
       </ul>
+      {% endif %}
     </div>
-    {% endif %}
-
-    <!-- Publications -->
-    {% if sec == 'publications' and publications %}
-    <div class="section">
-      <div class="section-title">{{ section_titles.publications | default('Publications') }}</div>
-      {% for pub in publications %}
-      <div class="pub-entry">
-        <div class="entry-header">
-          <span class="entry-name"><strong>{{ pub.title }}</strong></span>
-          {% if pub.date %}<span class="entry-dates">{{ pub.date }}</span>{% endif %}
-        </div>
-        <div class="entry-sub-line">
-          {{ pub.publisher }}
-        </div>
-        {%- set pub_url_clean = (pub.url | string | trim) if pub.url else '' -%}
-        {%- set pub_url_valid = pub_url_clean and pub_url_clean.lower() not in ['n/a', 'na', 'none', 'null', '-'] -%}
-        {%- if pub.doi or pub_url_valid -%}
-        <div class="pub-link">
-          {%- if pub.doi %}DOI: {{ pub.doi }}{% endif -%}
-          {%- if pub_url_valid %}
-            {%- if pub.doi %} | {% endif -%}
-            <a href="{{ pub_url_clean | absolute_url }}">{{ pub_url_clean }}</a>
-          {%- endif -%}
-        </div>
-        {%- endif -%}
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Optional Sections -->
-    {% if sec == 'optional_sections' and optional_sections %}
-      {% for opt_sec in optional_sections %}
-        {% if opt_sec.items %}
-        <div class="section">
-          <div class="section-title">{{ opt_sec.title }}</div>
-          {% for item in opt_sec.items %}
-          <div class="entry">
-            <div class="entry-header">
-              <span class="entry-name">
-                {{- item.name -}}
-                {%- if item.organization %} — {{ item.organization }}{% endif -%}
-              </span>
-              {% if item.dates %}<span class="entry-dates">{{ item.dates }}</span>{% endif %}
-            </div>
-            {% if item.description %}
-            <div class="project-sub-line">
-              {{ item.description }}
-            </div>
-            {% endif %}
-            {% if item.bullets %}
-            <ul class="bullets">
-              {% for bullet in item.bullets %}<li>{{ bullet }}</li>{% endfor %}
-            </ul>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      {% endfor %}
-    {% endif %}
     {% endfor %}
-      
+  </div>
+  {% endif %}
+
+  <!-- ================================================================
+       INTERNSHIP EXPERIENCE
+       Format: Company Name — Role  (dates)   ← single header line
+  ================================================================ -->
+  {% if internships_selected %}
+  <div class="section">
+    <div class="section-title">Internship Experience</div>
+    {% for intern in internships_selected %}
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-name">{{ intern.company }}</span>
+        {% if intern.role %} &mdash; <span style="font-weight: normal; font-size: 9.5pt;">{{ intern.role }}</span>{% endif %}
+        <span class="entry-dates"> ({{ intern.dates }})</span>
+      </div>
+      {% if intern.bullets %}
+      <ul class="bullets">
+        {% for bullet in intern.bullets %}<li>{{ bullet }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ================================================================
+       EDUCATION
+  ================================================================ -->
+  {% if education %}
+  <div class="section">
+    <div class="section-title">Education</div>
+    {% for edu in education %}
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-name">{{ edu.degree }}</span>
+        <span class="entry-dates"> ({{ edu.dates }})</span>
+      </div>
+      <div class="entry-sub-line">
+        {{ edu.institution }}{% if edu.gpa %} &mdash;
+          {#- Detect school-level certificates to show "Score" instead of "CGPA" -#}
+          {% set deg_lower = edu.degree | lower %}
+          {% set gpa_str = edu.gpa | string | replace('Score:', '') | replace('score:', '') | replace('CGPA:', '') | replace('cgpa:', '') | trim %}
+          {% if 'secondary' in deg_lower or 'ssc' in deg_lower or 'hsc' in deg_lower
+             or '(x)' in deg_lower or '(xii)' in deg_lower
+             or 'xii' in deg_lower or ' x ' in (' ' ~ deg_lower ~ ' ')
+             or '10th' in deg_lower or '12th' in deg_lower
+             or 'matriculation' in deg_lower or 'higher secondary' in deg_lower %}Score: {{ gpa_str }}{% if '%' not in gpa_str %}%{% endif %}
+          {%- else %}CGPA: {{ gpa_str }}{% if '/' not in gpa_str %}/10.00{% endif %}
+          {%- endif %}
+        {%- endif %}
+      </div>
+      {% if edu.relevant_coursework and edu.relevant_coursework.strip().lower() not in ["n/a", "none", "not applicable", ""] %}
+      <div class="edu-coursework">Coursework: {{ edu.relevant_coursework }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ================================================================
+       CERTIFICATIONS
+  ================================================================ -->
+  {% if certifications %}
+  <div class="section">
+    <div class="section-title">Certifications</div>
+    {% for cert in certifications %}
+    <div class="cert-entry">
+      <b>{{ cert.name }}</b> &mdash; {{ cert.issuer }}{% if cert.date %}, {{ cert.date }}{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
 </body>
 </html>
