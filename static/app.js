@@ -387,6 +387,31 @@ function renderResult(data) {
     }
   }
 
+  // ── Render Unverified Skills Warning ──
+  const unverifiedContainer = $("unverified-skills-container");
+  const unverifiedList = $("unverified-skills-list");
+  if (unverifiedContainer && unverifiedList) {
+    unverifiedList.innerHTML = "";
+    const unverified = data.unverified_skills || [];
+    if (unverified.length > 0) {
+      unverified.forEach(itemObj => {
+        const li = document.createElement("li");
+        li.style.marginBottom = "6px";
+        let locationText = itemObj.location || "";
+        if (locationText.startsWith("skills category: ")) {
+          locationText = "Technical Skills — " + locationText.replace("skills category: ", "");
+        } else if (locationText.startsWith("project: ")) {
+          locationText = "Project — " + locationText.replace("project: ", "");
+        }
+        li.innerHTML = `<strong>'${escHtml(itemObj.item)}'</strong> (${escHtml(locationText)})`;
+        unverifiedList.appendChild(li);
+      });
+      unverifiedContainer.classList.remove("hidden");
+    } else {
+      unverifiedContainer.classList.add("hidden");
+    }
+  }
+
   // ── Render Scoring Dashboard ──
   const dashboardCard = $("dashboard-card");
   if (dashboardCard && dashboard) {

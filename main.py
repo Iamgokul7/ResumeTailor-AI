@@ -9,6 +9,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -28,15 +29,15 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from gemini_service import tailor_resume, analyze_jd_match
+from gemini_service import generate_tailored_resume, analyze_jd_match
 from pdf_service import render_pdf
-from storage import get_all_keywords
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
 
 app = FastAPI(title="ResumeTailor", version="1.0.0")
 
@@ -100,7 +101,6 @@ def verify_password(entered_password: str) -> bool:
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
     
-    # 1. Allowed paths that bypass authentication
     is_login_route = (path == "/login")
     is_static_asset = (path.startswith("/static/") and not path.endswith("index.html"))
     is_favicon = (path == "/favicon.ico")
@@ -108,12 +108,10 @@ async def auth_middleware(request: Request, call_next):
     if is_login_route or is_static_asset or is_favicon:
         return await call_next(request)
         
-    # 2. Check session authentication status
     is_authenticated = request.session.get("authenticated", False)
     if is_authenticated:
         return await call_next(request)
         
-    # 3. Handle unauthenticated requests
     if path.startswith("/api/"):
         return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
     else:
@@ -157,145 +155,7 @@ class GenerateResponse(BaseModel):
     overall_match_percentage: int
     warnings: list[str] = []
     dashboard: dict[str, Any] | None = None
-
-
-# ---------------------------------------------------------------------------
-# Fabrication safety check
-# ---------------------------------------------------------------------------
-
-# Minimum token length to bother checking (ignore very short words like "a", "of")
-_MIN_TOKEN_LEN = 3
-
-# Words that are so generic they're never a "fabricated skill"
-_STOPWORDS = {
-    "and", "the", "for", "with", "using", "from", "into", "that",
-    "this", "each", "their", "which", "have", "been", "will", "per",
-    "our", "all", "are", "was", "were", "its", "not", "but", "can",
-    "new", "via", "any", "add", "set", "run", "key", "top", "end",
-    "one", "two", "api", "sub",
-}
-
-
-def _normalize_text(text: str) -> str:
-    """Normalize text for robust comparison by lowercasing, normalizing hyphens, and collapsing spaces."""
-    if not text:
-        return ""
-    text = text.lower()
-    # Normalize hyphens: replace " - " or "  -  " with "-"
-    text = re.sub(r"\s*-\s*", "-", text)
-    # Collapse multiple whitespaces
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def _build_bank_text(bank: dict[str, Any]) -> str:
-    """Flatten the entire bank into one lowercase string for phrase search."""
-    parts: list[str] = []
-
-    def _collect(obj: Any) -> None:
-        if isinstance(obj, str):
-            parts.append(obj.lower())
-        elif isinstance(obj, dict):
-            for v in obj.values():
-                _collect(v)
-        elif isinstance(obj, list):
-            for item in obj:
-                _collect(item)
-
-    _collect(bank)
-    return " ".join(parts)
-
-
-def _extract_skill_items(tailored: dict[str, Any]) -> list[tuple[str, str]]:
-    """
-    Return (full_item_string, source_label) pairs for every skill item
-    and tech_stack entry in the tailored output.
-    We check whole items (e.g. "PostgreSQL", "GitHub Actions") rather than
-    splitting them into sub-tokens, which prevents short generic tokens
-    from masking invented multi-word terms.
-    """
-    results: list[tuple[str, str]] = []
-
-    for entry in tailored.get("skills_selected", []):
-        cat = entry.get("category", "")
-        for item in entry.get("items", []):
-            item_str = item.strip()
-            if len(item_str) >= _MIN_TOKEN_LEN:
-                results.append((item_str, f"skills[{cat}]"))
-
-    for key in ["projects_selected", "flagship_projects_selected", "other_projects_selected"]:
-        for proj in tailored.get(key, []):
-            stack = proj.get("tech_stack", "")
-            for part in re.split(r"[,;]+", stack):
-                part = part.strip()
-                if len(part) >= _MIN_TOKEN_LEN:
-                    results.append((part, f"project[{proj.get('name', '')}].tech_stack"))
-
-    return results
-
-
-def run_fabrication_check(
-    tailored: dict[str, Any],
-    bank: dict[str, Any],
-) -> list[str]:
-    """
-    Compare every skill/tech item in *tailored* against the full bank text.
-
-    Strategy:
-    1. Build a single lowercase string of all bank content.
-    2. For each skill item (e.g. "PostgreSQL", "GitHub Actions"):
-       a. Check if the lowercased item appears as a substring in the bank text.
-       b. If not, also check each individual word token of the item against
-          the bank keyword set (catches abbreviations like "AWS", "GCP").
-    3. If neither check passes -> flag as a possible fabrication.
-
-    Returns a list of warning strings. Empty list = all clear.
-    """
-    bank_text = _build_bank_text(bank)
-    bank_text_norm = _normalize_text(bank_text)
-    bank_keywords = get_all_keywords(bank)
-    bank_keywords_norm = {_normalize_text(k) for k in bank_keywords}
-    
-    warnings: list[str] = []
-    seen: set[str] = set()
-
-    for item, source in _extract_skill_items(tailored):
-        item_lower = item.lower()
-
-        # Skip pure stopwords
-        if item_lower in _STOPWORDS:
-            continue
-
-        # Primary check: whole item present in bank text (substring match on normalized text)
-        item_norm = _normalize_text(item)
-        if item_norm in bank_text_norm:
-            continue
-
-        # Secondary check: split into tokens — ALL meaningful tokens must be
-        # known in the bank keyword set (exact match) or in bank text.
-        tokens = [
-            t.strip(".-").lower()
-            for t in re.split(r"[\s,;/()\[\]\"']+", item)
-            if len(t.strip(".-")) >= _MIN_TOKEN_LEN
-            and t.strip(".-").lower() not in _STOPWORDS
-        ]
-        
-        # Normalize tokens for comparison
-        tokens_norm = [_normalize_text(t) for t in tokens]
-
-        def _token_known(tok: str) -> bool:
-            return tok in bank_keywords_norm or tok in bank_text_norm
-
-        all_tokens_known = all(_token_known(t) for t in tokens_norm) if tokens_norm else True
-
-        if not all_tokens_known:
-            if item_lower not in seen:
-                seen.add(item_lower)
-                logger.warning("Possible fabricated skill: '%s' (from %s)", item, source)
-                warnings.append(item)
-
-    return warnings
-
+    unverified_skills: list[dict[str, Any]] = []
 
 
 # ---------------------------------------------------------------------------
@@ -387,90 +247,6 @@ async def analyze_keywords(req: AnalyzeRequest):
     )
 
 
-def find_header_index(text: str, header: str) -> int:
-    text_lower = text.lower()
-    h_lower = header.lower().strip()
-    
-    # Try finding with newline prefix
-    idx = text_lower.find("\n" + h_lower)
-    if idx != -1:
-        return idx + 1
-        
-    # If not found, check if it's at the very beginning of the document
-    if text_lower.startswith(h_lower):
-        return 0
-        
-    # Check for space prefix
-    idx = text_lower.find(" " + h_lower)
-    if idx != -1:
-        return idx + 1
-        
-    return text_lower.find(h_lower)
-
-
-def check_pdf_linearity_and_completeness(pdf_path: Path, expected_name: str, tailored: dict[str, Any]) -> tuple[bool, str]:
-    """
-    Extract text from the rendered PDF and verify:
-    1. Candidate name is present.
-    2. Expected section headers are present in top-to-bottom (linear) order.
-    """
-    import pypdf
-    try:
-        reader = pypdf.PdfReader(str(pdf_path))
-        text_parts = []
-        for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                text_parts.append(t)
-        extracted_text = "\n".join(text_parts)
-    except Exception as exc:
-        logger.exception("Error extracting text from generated PDF")
-        return False, f"Could not read text from generated PDF: {exc}"
-
-    extracted_lower = extracted_text.lower()
-    
-    # Verify candidate name (case-insensitive)
-    name_norm = expected_name.lower().strip()
-    if name_norm not in extracted_lower:
-        return False, f"Candidate name '{expected_name}' missing from PDF text layer"
-
-    # Define the expected section headers and check their order using variants
-    expected_headers = []
-    
-    if tailored.get("summary"):
-        expected_headers.append(("summary", ["professional summary", "summary"]))
-    if tailored.get("skills_selected"):
-        expected_headers.append(("skills", ["technical skills", "skills"]))
-    if tailored.get("flagship_projects_selected"):
-        expected_headers.append(("flagship_projects", ["flagship projects"]))
-    if tailored.get("other_projects_selected"):
-        expected_headers.append(("other_projects", ["other projects"]))
-    if tailored.get("internships_selected"):
-        expected_headers.append(("internships", ["internship experience", "work experience", "experience"]))
-    if tailored.get("education"):
-        expected_headers.append(("education", ["education"]))
-    if tailored.get("certifications"):
-        expected_headers.append(("certifications", ["certifications"]))
-
-    # Check that headers appear in monotonic index order
-    last_idx = -1
-    for name, variants in expected_headers:
-        idx = -1
-        matched_variant = ""
-        for var in variants:
-            idx = find_header_index(extracted_text, var)
-            if idx != -1:
-                matched_variant = var
-                break
-        if idx == -1:
-            return False, f"Required section header for '{name}' (expected one of: {variants}) missing from PDF text layer"
-        if idx < last_idx:
-            return False, f"PDF layout parsed out of order: '{matched_variant}' appeared before previous section"
-        last_idx = idx
-
-    return True, ""
-
-
 @app.post("/api/generate-resume", response_model=GenerateResponse)
 async def generate_resume(req: GenerateRequest):
     """
@@ -489,7 +265,17 @@ async def generate_resume(req: GenerateRequest):
         )
 
     try:
-        tailored, warnings, dashboard = tailor_resume(req.master_resume, req.jd_text, req.selected_keywords)
+        # Call the new generate_tailored_resume function
+        result = generate_tailored_resume(req.master_resume, req.jd_text, req.selected_keywords)
+        tailored = result["tailored_resume"]
+        # Duplicate projects to projects_selected to ensure frontend UI preview displays it correctly
+        tailored["projects_selected"] = tailored.get("projects", [])
+        dashboard = result["dashboard"]
+        
+        warnings = []
+        if result.get("dashboard_fallback_used"):
+            warnings.append("Dashboard fallback object was used due to malformed or missing dashboard in AI output.")
+
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     except Exception as exc:
@@ -501,54 +287,52 @@ async def generate_resume(req: GenerateRequest):
 
     contact = tailored.get("contact", {})
 
-    # Final PDF Safety Check: verify all unique factual information from master resume is represented
-    try:
-        from gemini_service import extract_master_entities, check_completeness
-        master_entities = extract_master_entities(req.master_resume)
-        completeness_errors = check_completeness(master_entities, tailored)
-        if completeness_errors:
-            logger.error("Final completeness safety check failed before PDF generation: %s", completeness_errors)
-            raise HTTPException(
-                status_code=502,
-                detail=f"Completeness safety check failed before PDF generation: {', '.join(completeness_errors)}"
-            )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Error running completeness check before PDF generation")
+    # Render PDF (only standard layout)
+    print("\n========== MAIN.PY ==========")
 
-    # Render PDF (Standard Layout first)
+    print("Section order:")
+    print(tailored.get("section_order"))
+
+    print("\nProjects:")
+    for p in tailored.get("projects", []):
+        print("-", p.get("name"), "|", p.get("section"))
+
+    print("\nPublications:")
+    for pub in tailored.get("publications", []):
+        print("-", pub.get("title"))
     try:
-        pdf_path = render_pdf(tailored, contact, simple_layout=False)
-        
-        # Verify text extraction & layout order
-        is_valid_layout, layout_error = check_pdf_linearity_and_completeness(pdf_path, contact.get("name", ""), tailored)
-        if not is_valid_layout:
-            logger.warning("Standard PDF layout check failed: %s. Regenerating with simple layout...", layout_error)
-            # Regenerate with simpler layout
-            pdf_path = render_pdf(tailored, contact, simple_layout=True)
-            # Recheck layout
-            is_valid_layout_simple, layout_error_simple = check_pdf_linearity_and_completeness(pdf_path, contact.get("name", ""), tailored)
-            if not is_valid_layout_simple:
-                warnings.append(f"PDF layout check failed: {layout_error_simple}")
+        pdf_path = render_pdf(tailored, contact)
     except Exception as exc:
         logger.exception("PDF rendering failed")
         raise HTTPException(status_code=500, detail=f"PDF rendering error: {exc}")
 
-    # Calculate final match score dynamically based on how many selected keywords are present in the final resume
-    tailored_items = {item.lower() for item, _ in _extract_skill_items(tailored)}
-    matched_count = sum(1 for kw in req.selected_keywords if kw.lower() in tailored_items)
-    overall_match = 50
+    # Calculate overall match percentage
+    tailored_text = ""
+    for group in tailored.get("skills_selected", []):
+        if isinstance(group, dict):
+            tailored_text += " " + " ".join(group.get("items", []))
+    for proj in tailored.get("projects", []):
+        if isinstance(proj, dict):
+            tailored_text += " " + proj.get("tech_stack", "") + " " + " ".join(proj.get("bullets", []))
+    tailored_text_lower = tailored_text.lower()
+    
+    matched_count = 0
     if req.selected_keywords:
+        for kw in req.selected_keywords:
+            if kw.strip().lower() in tailored_text_lower:
+                matched_count += 1
         overall_match = int((matched_count / len(req.selected_keywords)) * 50 + 50)
         overall_match = min(100, max(50, overall_match))
+    else:
+        overall_match = 50
 
     return GenerateResponse(
         tailored=tailored,
         pdf_filename=pdf_path.name,
         overall_match_percentage=overall_match,
         warnings=warnings,
-        dashboard=dashboard
+        dashboard=dashboard,
+        unverified_skills=result.get("unverified_skills", [])
     )
 
 

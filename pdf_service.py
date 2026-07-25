@@ -57,24 +57,52 @@ def display_url_filter(url: Any) -> str:
 def render_pdf(
     tailored_data: dict[str, Any],
     contact: dict[str, str],
-    simple_layout: bool = False,
 ) -> Path:
     """
     Render *tailored_data* into a PDF resume and save it to /output/.
 
     Args:
-        tailored_data: Parsed JSON from gemini_service.tailor_resume().
+        tailored_data: Parsed JSON from gemini_service.generate_tailored_resume().
         contact:       The ``contact`` section from resume_bank.json.
-        simple_layout: True to render using a simplified ATS-safe template.
 
     Returns:
         Absolute path to the generated PDF file.
     """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    print("\n========== PDF SERVICE ==========")
+    print("Projects received:", len(tailored_data.get("projects", [])))
+    print("Publications received:", len(tailored_data.get("publications", [])))
+
+    for i, p in enumerate(tailored_data.get("projects", []), 1):
+        print(f"Project {i}: {p.get('name')} | section={p.get('section')}")
+
+    # Group projects by their "section" field to preserve the exact grouping and order
+    project_sections = []
+    seen_sections = []
+
+    for p in tailored_data.get("projects", []):
+        sec_title = p.get("section") or "Projects"
+
+        if sec_title not in seen_sections:
+            seen_sections.append(sec_title)
+            project_sections.append({
+                "title": sec_title,
+                "projects": []
+            })
+
+        for sec in project_sections:
+            if sec["title"] == sec_title:
+                sec["projects"].append(p)
+                break
+
+        print("\nProject sections after grouping:")
+        for sec in project_sections:
+            print(sec["title"], "->", len(sec["projects"]))
 
     # Build Jinja2 context
     context: dict[str, Any] = {
         "contact": contact,
+        "project_sections": project_sections,
         **tailored_data,
     }
 
@@ -86,7 +114,7 @@ def render_pdf(
     env.filters["absolute_url"] = absolute_url_filter
     env.filters["display_url"] = display_url_filter
     
-    template_name = "resume_template_simple.html" if simple_layout else "resume_template.html"
+    template_name = "resume_template.html"
     template = env.get_template(template_name)
     rendered_html = template.render(**context)
 
@@ -119,4 +147,3 @@ def _render_with_weasyprint(html: str, output_path: Path) -> None:
             pisa_status = pisa.CreatePDF(html, dest=f)
         if pisa_status.err:
             raise RuntimeError(f"xhtml2pdf rendering failed with status {pisa_status.err}")
-
