@@ -10,52 +10,39 @@
       size: letter portrait;
       margin: 0.5in 0.5in 0.5in 0.5in;
     }
-
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-
     body {
       font-family: 'Times New Roman', Times, serif;
       font-size: 10pt;
       line-height: 1.12;
       color: #111111;
     }
-
-    /* Candidate Name */
     .candidate-name {
       font-size: 22pt;
       font-weight: bold;
-      
       text-align: center;
       margin-bottom: 3pt;
     }
-
-    /* Contact Info */
     .contact-info {
       font-size: 9.5pt;
       text-align: center;
       margin-bottom: 8pt;
       line-height: 1.2;
     }
-
-    /* Link Styling */
     a {
       color: #0000EE;
       text-decoration: underline;
     }
-
     a:visited {
       color: #0000EE;
     }
-
-    /* Section Headings */
     .section-title {
       font-size: 12pt;
       font-weight: bold;
-       
       text-align: left;
       color: #1F3A5F;
       border-bottom: 0.5pt solid #1F3A5F;
@@ -66,15 +53,11 @@
       page-break-after: avoid;
       break-after: avoid;
     }
-
-    /* Summary */
     .summary-text {
       font-size: 10pt;
       line-height: 1.12;
       text-align: justify;
     }
-
-    /* Skills */
     .skills-row {
       font-size: 10pt;
       margin-bottom: 2pt;
@@ -82,37 +65,34 @@
       page-break-inside: avoid;
       break-inside: avoid;
     }
-
-    /* Entries */
     .entry {
       margin-bottom: 5pt;
       page-break-inside: avoid;
       break-inside: avoid;
     }
-
     .entry-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
+      display: table;
+      width: 100%;
       margin-bottom: 1pt;
       -pdf-keep-with-next: true;
       page-break-after: avoid;
       break-after: avoid;
     }
-
     .entry-name {
+      display: table-cell;
       font-weight: bold;
       font-size: 10pt;
+      width: 75%;
     }
-
     .entry-dates {
+      display: table-cell;
       font-size: 9.5pt;
       color: #111111;
       font-weight: normal;
+      text-align: right;
+      width: 25%;
       white-space: nowrap;
-      flex-shrink: 0;
     }
-
     .project-sub-line {
       font-size: 9.5pt;
       margin-bottom: 2pt;
@@ -120,66 +100,62 @@
       page-break-after: avoid;
       break-after: avoid;
     }
-
     .entry-sub-line {
       font-size: 10pt;
       margin-bottom: 2pt;
     }
-
     ul.bullets {
       margin-left: 12pt;
       margin-top: 1pt;
       list-style-type: disc;
       padding-left: 0;
     }
-
     ul.bullets li {
       font-size: 10pt;
       margin-bottom: 1pt;
       line-height: 1.12;
       text-align: justify;
     }
-
-    /* Cert entry */
     .cert-entry {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: 10.5pt;
-      margin-bottom: 3.5pt;
+      display: table;
+      width: 100%;
+      font-size: 10pt;
+      margin-bottom: 3pt;
       page-break-inside: avoid;
       break-inside: avoid;
     }
-
-    /* Education extra */
+    .cert-name {
+      display: table-cell;
+      width: 80%;
+    }
+    .cert-date {
+      display: table-cell;
+      width: 20%;
+      text-align: right;
+      white-space: nowrap;
+    }
     .edu-coursework {
       font-size: 10pt;
       color: #111111;
       margin-top: 1pt;
     }
-
-    /* Publication entry */
     .pub-entry {
       margin-bottom: 7pt;
       page-break-inside: avoid;
       break-inside: avoid;
     }
-
     .pub-title {
       font-weight: bold;
       font-size: 10.5pt;
     }
-
     .pub-publisher {
       font-size: 10pt;
       color: #111111;
     }
-
     .pub-link {
       font-size: 9.5pt;
       color: #555555;
     }
-
   </style>
 </head>
 <body>
