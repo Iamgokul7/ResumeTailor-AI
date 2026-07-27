@@ -687,10 +687,12 @@ def _append_missing_entries(
         if any(isinstance(item, dict) and _entries_match(master_entry, item, section_name) for item in existing):
             continue
         repaired_entry = dict(master_entry)
+        # Skip empty education entries (no institution and no degree)
+        if section_name == "education" and not repaired_entry.get("institution") and not repaired_entry.get("degree"):
+            continue
         existing.append(repaired_entry)
         added += 1
     return added
-
 
 def repair_tailored_resume_from_master(tailored_data: dict[str, Any], master_resume: str) -> dict[str, int]:
     if not isinstance(tailored_data.get("tailored_resume"), dict):
