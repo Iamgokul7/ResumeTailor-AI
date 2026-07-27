@@ -88,7 +88,7 @@ Follow these instructions strictly to ensure the tailored output is of the highe
     - Ensure appropriate technical scope: the wording should accurately represent the scope of the candidate's work and avoid language that unintentionally inflates responsibility (prefer wording reflecting implementation, development, testing, deployment, or collaboration unless the uploaded resume clearly demonstrates ownership of architecture, organizational strategy, or technical leadership).
     - Maintain absolute terminology, plurality, capitalization, and naming convention consistency across the entire resume (e.g., do not mix 'REST APIs' and 'REST API', or 'Functional Testing' and 'Manual Functional Testing' unless context requires it).
     - Focus on outcomes/purpose, but never fabricate metrics.
-    - Each bullet should occupy approximately two lines maximum in the final PDF (target: 18-25 words).
+    - Each bullet should occupy approximately one to two lines in the final PDF (target: 15-20 words). Generate 3 bullet points per project and 2 bullet points per internship entry.
     - If the resume exceeds target length, shorten bullets, remove redundant wording, merge repetitive bullet descriptions, and tighten formatting. Do not delete factual sections or entries unless explicitly requested.
 
 11. ATS OPTIMIZATION & TERMINOLOGY:
