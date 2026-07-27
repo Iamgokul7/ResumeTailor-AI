@@ -648,6 +648,13 @@ def _entries_match(master_entry: dict[str, Any], generated_entry: dict[str, Any]
     # often get slightly reworded by Gemini (e.g. "OCI" vs "Oracle Cloud
     # Infrastructure"). Match if at least 40% of the shorter name's tokens
     # overlap — much more forgiving than the default which requires 3-4 tokens.
+    if section == "education":
+        master_date = _normalize_match_text(master_entry.get("dates", ""))
+        generated_date = _normalize_match_text(generated_entry.get("dates", ""))
+        if master_date and generated_date and master_date == generated_date:
+            return True
+        return False
+
     if section == "certifications":
         shorter_len = min(len(master_tokens), len(generated_tokens))
         if shorter_len > 0:
