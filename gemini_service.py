@@ -129,6 +129,7 @@ Return ONLY a valid JSON object matching this exact schema — no markdown, no p
         "dates": "<string>",
         "tech_stack": "<string>",
         "github_link": "<string>",
+        "live_demo": "<string>",
         "bullets": ["<string>"]
       }
     ],
@@ -138,6 +139,7 @@ Return ONLY a valid JSON object matching this exact schema — no markdown, no p
         "dates": "<string>",
         "tech_stack": "<string>",
         "github_link": "<string>",
+        "live_demo": "<string>",
         "bullets": ["<string>"]
       }
     ],
