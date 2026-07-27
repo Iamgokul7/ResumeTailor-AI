@@ -13,7 +13,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-BANK_PATH = Path(__file__).parent / "resume_bank.json"
+_PRIMARY = Path(__file__).parent / "resume_bank.json"
+_FALLBACK = Path(__file__).parent / "resume_bank.example.json"
+BANK_PATH = _PRIMARY if _PRIMARY.exists() else _FALLBACK
 
 
 def load_bank() -> dict[str, Any]:
@@ -122,6 +124,8 @@ def format_bank_to_text(bank: dict[str, Any]) -> str:
                 lines.append(f"  Tech Stack: {p.get('tech_stack')}")
             if p.get("github_link"):
                 lines.append(f"  GitHub: {p.get('github_link')}")
+            if p.get("live_link"):
+                lines.append(f"  Live Demo: {p.get('live_link')}")
             bullets = p.get("bullet_variants", [])
             for b in bullets:
                 tags_str = f" [tags: {', '.join(b.get('tags', []))}]" if b.get("tags") else ""
@@ -149,4 +153,3 @@ def format_bank_to_text(bank: dict[str, Any]) -> str:
         lines.append("")
 
     return "\n".join(lines)
-

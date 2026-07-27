@@ -1,12 +1,12 @@
 {
   "contact": {
-    "name": "Your Name",
+    "name": "Gokul P",
     "location": "Chennai, Tamil Nadu, India",
-    "email": "your.email@example.com",
-    "phone": "+91 00000 00000",
-    "github": "https://github.com/yourusername",
-    "portfolio": "https://yourportfolio.com",
-    "linkedin": "https://linkedin.com/in/yourusername"
+    "email": "gokul.p0807@gmail.com",
+    "phone": "+91 97914 52673",
+    "github": "https://github.com/Iamgokul7",
+    "portfolio": "https://gokulp-portfolio.vercel.app/",
+    "linkedin": "https://linkedin.com/in/gokulp0807"
   },
   "education": [
     {
@@ -60,16 +60,54 @@
   ],
   "skills": {
     "Languages": ["Python", "Java", "JavaScript", "C", "C++"],
-    "Backend & APIs": ["Flask", "REST API design", "PHP", "Gunicorn", "Docker"],
+    "Backend & APIs": ["FastAPI", "Flask", "REST API design", "PHP", "Gunicorn", "Docker"],
     "Frontend": ["HTML", "CSS", "JavaScript", "Figma (UI/UX)"],
     "Databases": ["MySQL", "SQLite", "relational schema design"],
     "Cloud & DevOps": ["Oracle Cloud Infrastructure (OCI)", "Docker containerization", "Git/GitHub"],
-    "Other": ["OpenCV", "AES Encryption", "AI API integration (Gemini)", "SDLC practices"]
+    "AI & Security": ["Google Gemini API", "AES Encryption", "DWT Steganography", "RBAC", "OpenCV"],
+    "Other": ["WeasyPrint", "Jinja2", "pypdf", "python-docx", "SDLC practices"]
   },
   "projects": [
     {
+      "name": "ResumeTailor AI — AI-Powered, ATS-Safe Resume Customization Engine",
+      "dates": "Jun 2026 – Jul 2026",
+      "tech_stack": "Python, FastAPI, Google Gemini API, WeasyPrint, Jinja2",
+      "github_link": "https://github.com/Iamgokul7/ResumeTailor-AI",
+      "live_link": "https://resume-tailor-j5zl.onrender.com",
+      "bullet_variants": [
+        {
+          "tags": ["ai", "backend", "fullstack"],
+          "text": "Architected a full-stack, closed-loop AI resume tailoring engine enforcing strict traceability, ensuring the LLM can only rephrase/select from a candidate's verified master content bank and never fabricate skills, credentials, or experience."
+        },
+        {
+          "tags": ["ai", "backend", "fullstack"],
+          "text": "Designed an end-to-end pipeline: resume/JD upload → text extraction (pypdf/python-docx) → Gemini-based keyword and JD-match analysis → user-driven keyword selection → AI-customized rewrite of summary, skills, projects, and internships."
+        },
+        {
+          "tags": ["ai", "security", "backend"],
+          "text": "Built an automated fabrication safety gate that tokenizes AI-generated output against a flattened master keyword bank, flagging any unrecognized technology terms as an amber warning badge before the resume is finalized."
+        },
+        {
+          "tags": ["backend", "api", "fullstack"],
+          "text": "Implemented a resilient AI service layer with automatic model failover chain to maintain uptime against rate limits and transient API errors."
+        },
+        {
+          "tags": ["pdf", "backend", "fullstack"],
+          "text": "Engineered a paged PDF rendering pipeline using WeasyPrint with a Jinja2 templating layer, including a graceful fallback to xhtml2pdf when GTK3 dependencies are unavailable."
+        },
+        {
+          "tags": ["security", "backend", "fullstack"],
+          "text": "Built session-based authentication with signed cookies, custom middleware route guarding for all API endpoints, and IP-based rate limiting with lockout after repeated failed login attempts."
+        },
+        {
+          "tags": ["deployment", "devops"],
+          "text": "Deployed the application live on Render, accessible at resume-tailor-j5zl.onrender.com as a fully functional hosted web app."
+        }
+      ]
+    },
+    {
       "name": "ERPilot AI — Multi-Tenant ERP SaaS Platform",
-      "dates": "Mar 2026 – Jun 2026",
+      "dates": "Mar 2026 – May 2026",
       "tech_stack": "Python, Flask, SQLite, Docker, Gemini API",
       "github_link": "https://github.com/Iamgokul7/ERPilot-AI",
       "bullet_variants": [
@@ -197,7 +235,7 @@
   "summary_variants": [
     {
       "tags": ["sde", "backend", "python"],
-      "text": "Computer Science Engineering graduate specializing in full-stack web development with Python and Flask. Built and shipped a multi-tenant SaaS ERP platform from architecture through deployment, including REST API design, role-based access control, and AI integration. Comfortable across the stack: backend logic, database schema design, REST APIs, and frontend implementation."
+      "text": "Computer Science Engineering graduate specializing in full-stack web development with Python and FastAPI/Flask. Built and shipped a multi-tenant SaaS ERP platform and an AI-powered resume tailoring engine from architecture through deployment, including REST API design, role-based access control, and AI integration. Comfortable across the stack: backend logic, database schema design, REST APIs, and frontend implementation."
     },
     {
       "tags": ["qa", "testing", "automation"],
@@ -205,11 +243,15 @@
     },
     {
       "tags": ["fullstack", "web"],
-      "text": "Full Stack developer specializing in Python/Flask and JavaScript web applications. Experienced designing normalized databases, integrating generative AI, and building responsive Figma-to-code interfaces. Seeking roles to build features end-to-end."
+      "text": "Full Stack developer specializing in Python/FastAPI/Flask and JavaScript web applications. Experienced designing normalized databases, integrating generative AI, and building responsive Figma-to-code interfaces. Seeking roles to build features end-to-end."
     },
     {
       "tags": ["sap", "erp", "consultant"],
       "text": "Computer Science Engineering graduate with experience building a multi-tenant SaaS ERP system with modular tracking for inventory, sales, suppliers, and employees. Deep understanding of business isolation logic, reporting flows, and workflow coordination."
+    },
+    {
+      "tags": ["ai", "llm", "backend"],
+      "text": "Computer Science Engineering graduate with hands-on experience building AI-powered applications using Google Gemini API, including a closed-loop resume tailoring engine and an AI-assisted ERP platform. Skilled in prompt engineering, AI output validation, fabrication-checking, and integrating LLMs into production web applications."
     }
   ]
 }
